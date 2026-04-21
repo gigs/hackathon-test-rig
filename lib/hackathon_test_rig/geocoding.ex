@@ -6,7 +6,9 @@ defmodule HackathonTestRig.Geocoding do
 
   @coordinates %{
     "London, UK" => {51.5074, -0.1278},
+    "Dublin, IE" => {53.3498, -6.2603},
     "Berlin, DE" => {52.5200, 13.4050},
+    "Stockholm, SE" => {59.3293, 18.0686},
     "New York, US" => {40.7128, -74.0060},
     "San Francisco, US" => {37.7749, -122.4194},
     "Tokyo, JP" => {35.6762, 139.6503},

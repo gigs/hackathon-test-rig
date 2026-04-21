@@ -236,16 +236,12 @@ defmodule HackathonTestRigWeb.CoreComponents do
     <div class="fieldset mb-2">
       <label for={@id}>
         <span :if={@label} class="label mb-1">{@label}</span>
-        <select
-          id={@id}
-          name={@name}
-          class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}
-          multiple={@multiple}
-          {@rest}
-        >
-          <option :if={@prompt} value="">{@prompt}</option>
-          {Phoenix.HTML.Form.options_for_select(@options, @value)}
-        </select>
+        <div class={[@class || "w-full select", @errors != [] && (@error_class || "select-error")]}>
+          <select id={@id} name={@name} multiple={@multiple} {@rest}>
+            <option :if={@prompt} value="">{@prompt}</option>
+            {Phoenix.HTML.Form.options_for_select(@options, @value)}
+          </select>
+        </div>
       </label>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>

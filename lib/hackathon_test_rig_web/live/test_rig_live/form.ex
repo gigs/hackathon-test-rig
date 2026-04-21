@@ -16,7 +16,20 @@ defmodule HackathonTestRigWeb.TestRigLive.Form do
       <.form for={@form} id="test_rig-form" phx-change="validate" phx-submit="save">
         <.input field={@form[:name]} type="text" label="Name" />
         <.input field={@form[:hostname]} type="text" label="Hostname" />
-        <.input field={@form[:location]} type="text" label="Location" />
+        <.input
+          field={@form[:location]}
+          type="select"
+          label="Location"
+          prompt="Choose a location"
+          options={[
+            "London, UK",
+            "Dublin, IE",
+            "Berlin, DE",
+            "New York, US",
+            "San Francisco, US",
+            "Stockholm, SE"
+          ]}
+        />
         <footer>
           <.button phx-disable-with="Saving..." variant="primary">Save Test rig</.button>
           <.button navigate={return_path(@return_to, @test_rig)}>Cancel</.button>
