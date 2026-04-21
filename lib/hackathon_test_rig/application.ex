@@ -12,7 +12,7 @@ defmodule HackathonTestRig.Application do
       HackathonTestRig.Repo,
       {DNSCluster, query: Application.get_env(:hackathon_test_rig, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: HackathonTestRig.PubSub},
-      {Oban, Application.fetch_env!(:hackathon_test_rig, Oban)},
+      HackathonTestRig.ObanSupervisor,
       # Start a worker by calling: HackathonTestRig.Worker.start_link(arg)
       # {HackathonTestRig.Worker, arg},
       # Start to serve requests, typically the last entry

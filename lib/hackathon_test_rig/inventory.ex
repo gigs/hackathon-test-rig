@@ -288,4 +288,17 @@ defmodule HackathonTestRig.Inventory do
   def change_phone(%Phone{} = phone, attrs \\ %{}) do
     Phone.changeset(phone, attrs)
   end
+
+  @doc """
+  Returns a `[{queue_name, concurrency}]` keyword list with one queue per phone.
+
+  Used to build the Oban queue list at application boot. Oban Pro supports
+  adding queues dynamically at runtime; until we adopt that, the queue list
+  is fixed to the phones present when the app starts.
+  """
+  def oban_queues do
+    from(p in Phone, select: p.name, order_by: [asc: p.name])
+    |> Repo.all()
+    |> Enum.map(fn name -> {Phone.queue_name(name), 1} end)
+  end
 end
