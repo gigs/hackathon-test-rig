@@ -14,7 +14,13 @@ defmodule HackathonTestRigWeb.DeviceLive.Form do
       </.header>
 
       <.form for={@form} id="device-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:brand]} type="text" label="Brand" />
+        <.input
+          field={@form[:brand]}
+          type="select"
+          label="Brand"
+          prompt="Choose a brand"
+          options={["Apple", "Google"]}
+        />
         <.input field={@form[:name]} type="text" label="Name" />
         <.input
           field={@form[:type]}

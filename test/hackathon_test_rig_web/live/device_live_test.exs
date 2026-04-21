@@ -14,7 +14,7 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
   defp create_attrs(test_rig_id) do
     %{
       name: "some name",
-      brand: "some brand",
+      brand: "Apple",
       type: :smartphone,
       test_rig_id: test_rig_id
     }
@@ -23,7 +23,7 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
   defp update_attrs(test_rig_id) do
     %{
       name: "some updated name",
-      brand: "some updated brand",
+      brand: "Google",
       type: :tablet,
       test_rig_id: test_rig_id
     }
