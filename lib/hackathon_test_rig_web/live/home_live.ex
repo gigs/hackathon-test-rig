@@ -6,6 +6,8 @@ defmodule HackathonTestRigWeb.HomeLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket), do: Inventory.subscribe_phone_counts()
+
     markers =
       Inventory.list_test_rigs_with_phone_counts()
       |> Enum.map(fn {rig, phone_count} ->
@@ -27,6 +29,25 @@ defmodule HackathonTestRigWeb.HomeLive do
      |> assign(:page_title, "Test rig locations")
      |> assign(:markers, mapped)
      |> assign(:unmapped, unmapped)}
+  end
+
+  @impl true
+  def handle_info({:phone_counts_changed, counts}, socket) do
+    update_count = fn marker ->
+      %{marker | phone_count: Map.get(counts, marker.id, 0)}
+    end
+
+    markers = Enum.map(socket.assigns.markers, update_count)
+    unmapped = Enum.map(socket.assigns.unmapped, update_count)
+
+    payload =
+      Map.new(markers ++ unmapped, fn marker -> {marker.id, marker.phone_count} end)
+
+    {:noreply,
+     socket
+     |> assign(:markers, markers)
+     |> assign(:unmapped, unmapped)
+     |> push_event("world-map:counts", %{counts: payload})}
   end
 
   @impl true
@@ -152,6 +173,7 @@ defmodule HackathonTestRigWeb.HomeLive do
 
           this.map = map
           this.markers = new Map()
+          this.markerData = new Map()
 
           const icon = L.divIcon({
             className: "rig-pin",
@@ -160,19 +182,21 @@ defmodule HackathonTestRigWeb.HomeLive do
             iconAnchor: [9, 9],
           })
 
+          const popupHtml = (m) => `
+            <div class="rig-popup">
+              <div class="rig-popup__title">${m.name}</div>
+              <div class="rig-popup__meta">${m.location}</div>
+              <div class="rig-popup__meta"><code>${m.hostname}</code></div>
+              <div class="rig-popup__meta" data-role="phone-count">${m.phone_count} ${m.phone_count === 1 ? "phone" : "phones"}</div>
+              <a class="rig-popup__link" href="${m.path}" data-phx-link="redirect" data-phx-link-state="push">Open rig →</a>
+            </div>
+          `
+
           markers.forEach(m => {
             const marker = L.marker([m.lat, m.lng], { icon, title: m.name }).addTo(map)
-            const popup = `
-              <div class="rig-popup">
-                <div class="rig-popup__title">${m.name}</div>
-                <div class="rig-popup__meta">${m.location}</div>
-                <div class="rig-popup__meta"><code>${m.hostname}</code></div>
-                <div class="rig-popup__meta">${m.phone_count} ${m.phone_count === 1 ? "phone" : "phones"}</div>
-                <a class="rig-popup__link" href="${m.path}" data-phx-link="redirect" data-phx-link-state="push">Open rig →</a>
-              </div>
-            `
-            marker.bindPopup(popup)
+            marker.bindPopup(popupHtml(m))
             this.markers.set(m.id, marker)
+            this.markerData.set(m.id, m)
           })
 
           if (markers.length > 0) {
@@ -192,6 +216,22 @@ defmodule HackathonTestRigWeb.HomeLive do
             this.tileLayer.setUrl(tileLayerUrl())
           }
           window.addEventListener("phx:set-theme", this._onThemeChange)
+
+          this.handleEvent("world-map:counts", ({ counts }) => {
+            for (const [idStr, count] of Object.entries(counts)) {
+              const id = Number(idStr)
+              const data = this.markerData.get(id)
+              const marker = this.markers.get(id)
+              if (!data || !marker) continue
+              data.phone_count = count
+              marker.setPopupContent(popupHtml(data))
+              const open = marker.getPopup()
+              if (open && open.isOpen()) {
+                const node = open.getElement()?.querySelector('[data-role="phone-count"]')
+                if (node) node.textContent = `${count} ${count === 1 ? "phone" : "phones"}`
+              }
+            }
+          })
 
           setTimeout(() => map.invalidateSize(), 100)
         },

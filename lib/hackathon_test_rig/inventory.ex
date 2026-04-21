@@ -8,6 +8,39 @@ defmodule HackathonTestRig.Inventory do
 
   alias HackathonTestRig.Inventory.TestRig
 
+  @phone_counts_topic "inventory:phone_counts"
+
+  @doc """
+  Subscribe the current process to phone-count change notifications.
+  The process will receive `{:phone_counts_changed, counts_by_rig_id}` messages,
+  where `counts_by_rig_id` is a `%{test_rig_id => count}` map.
+  """
+  def subscribe_phone_counts do
+    Phoenix.PubSub.subscribe(HackathonTestRig.PubSub, @phone_counts_topic)
+  end
+
+  defp broadcast_phone_counts do
+    Phoenix.PubSub.broadcast(
+      HackathonTestRig.PubSub,
+      @phone_counts_topic,
+      {:phone_counts_changed, phone_counts_by_rig_id()}
+    )
+  end
+
+  @doc """
+  Returns a `%{test_rig_id => phone_count}` map covering every test rig,
+  including rigs with zero phones.
+  """
+  def phone_counts_by_rig_id do
+    from(r in TestRig,
+      left_join: p in assoc(r, :phones),
+      group_by: r.id,
+      select: {r.id, count(p.id)}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
   @doc """
   Returns the list of test_rigs.
 
@@ -167,9 +200,13 @@ defmodule HackathonTestRig.Inventory do
 
   """
   def create_phone(attrs) do
-    %Phone{}
-    |> Phone.changeset(attrs)
-    |> Repo.insert()
+    result =
+      %Phone{}
+      |> Phone.changeset(attrs)
+      |> Repo.insert()
+
+    with {:ok, _phone} <- result, do: broadcast_phone_counts()
+    result
   end
 
   @doc """
@@ -185,9 +222,17 @@ defmodule HackathonTestRig.Inventory do
 
   """
   def update_phone(%Phone{} = phone, attrs) do
-    phone
-    |> Phone.changeset(attrs)
-    |> Repo.update()
+    result =
+      phone
+      |> Phone.changeset(attrs)
+      |> Repo.update()
+
+    with {:ok, updated} <- result,
+         true <- updated.test_rig_id != phone.test_rig_id do
+      broadcast_phone_counts()
+    end
+
+    result
   end
 
   @doc """
@@ -203,7 +248,9 @@ defmodule HackathonTestRig.Inventory do
 
   """
   def delete_phone(%Phone{} = phone) do
-    Repo.delete(phone)
+    result = Repo.delete(phone)
+    with {:ok, _phone} <- result, do: broadcast_phone_counts()
+    result
   end
 
   @doc """
