@@ -85,7 +85,7 @@ defmodule HackathonTestRigWeb.HomeLive do
       <div class="pointer-events-none absolute inset-x-0 top-0 z-10 p-4 sm:p-6 lg:p-8">
         <div class="pointer-events-auto mx-auto flex max-w-5xl items-center justify-between gap-4 rounded-2xl bg-base-100/90 px-4 py-3 shadow-lg backdrop-blur">
           <div class="flex items-center gap-3">
-            <img src={~p"/images/logo.svg"} width="28" alt="Phoenix" />
+            <img src={~p"/images/logo.png"} width="28" alt="Logo" />
             <div>
               <div class="text-sm font-semibold">Test Rig Network</div>
               <div class="text-xs text-base-content/60">
