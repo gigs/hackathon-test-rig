@@ -4,10 +4,10 @@ defmodule HackathonTestRigWeb.TestRigLiveTest do
   import Phoenix.LiveViewTest
   import HackathonTestRig.InventoryFixtures
 
-  @create_attrs %{name: "some name", location: "some location", hostname: "some hostname"}
+  @create_attrs %{name: "some name", location: "London, UK", hostname: "some hostname"}
   @update_attrs %{
     name: "some updated name",
-    location: "some updated location",
+    location: "Dublin, IE",
     hostname: "some updated hostname"
   }
   @invalid_attrs %{name: nil, location: nil, hostname: nil}

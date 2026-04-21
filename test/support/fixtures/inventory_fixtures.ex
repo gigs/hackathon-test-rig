@@ -12,7 +12,7 @@ defmodule HackathonTestRig.InventoryFixtures do
       attrs
       |> Enum.into(%{
         hostname: "some hostname",
-        location: "some location",
+        location: "London, UK",
         name: "some name"
       })
       |> HackathonTestRig.Inventory.create_test_rig()
