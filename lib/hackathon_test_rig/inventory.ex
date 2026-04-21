@@ -118,6 +118,14 @@ defmodule HackathonTestRig.Inventory do
   end
 
   @doc """
+  Returns the list of phones belonging to the given test rig id.
+  """
+  def list_phones_for_test_rig(test_rig_id) do
+    from(p in Phone, where: p.test_rig_id == ^test_rig_id, order_by: [asc: p.name])
+    |> Repo.all()
+  end
+
+  @doc """
   Gets a single phone.
 
   Raises `Ecto.NoResultsError` if the Phone does not exist.

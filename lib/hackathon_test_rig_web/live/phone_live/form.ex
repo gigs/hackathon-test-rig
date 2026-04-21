@@ -54,6 +54,7 @@ defmodule HackathonTestRigWeb.PhoneLive.Form do
   end
 
   defp return_to("show"), do: "show"
+  defp return_to("test_rig"), do: "test_rig"
   defp return_to(_), do: "index"
 
   defp apply_action(socket, :edit, %{"id" => id}) do
@@ -65,13 +66,22 @@ defmodule HackathonTestRigWeb.PhoneLive.Form do
     |> assign(:form, to_form(Inventory.change_phone(phone)))
   end
 
-  defp apply_action(socket, :new, _params) do
-    phone = %Phone{}
+  defp apply_action(socket, :new, params) do
+    phone = %Phone{test_rig_id: parse_test_rig_id(params["test_rig_id"])}
 
     socket
     |> assign(:page_title, "New Phone")
     |> assign(:phone, phone)
     |> assign(:form, to_form(Inventory.change_phone(phone)))
+  end
+
+  defp parse_test_rig_id(nil), do: nil
+
+  defp parse_test_rig_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {int, ""} -> int
+      _ -> nil
+    end
   end
 
   @impl true
@@ -112,4 +122,9 @@ defmodule HackathonTestRigWeb.PhoneLive.Form do
 
   defp return_path("index", _phone), do: ~p"/phones"
   defp return_path("show", phone), do: ~p"/phones/#{phone}"
+
+  defp return_path("test_rig", %Phone{test_rig_id: id}) when not is_nil(id),
+    do: ~p"/test_rigs/#{id}"
+
+  defp return_path("test_rig", _phone), do: ~p"/test_rigs"
 end
