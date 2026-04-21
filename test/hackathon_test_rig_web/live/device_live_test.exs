@@ -3,6 +3,7 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
 
   import Phoenix.LiveViewTest
   import HackathonTestRig.InventoryFixtures
+  import HackathonTestRig.OrchestratorFixtures
 
   @invalid_attrs %{name: nil, brand: nil, type: nil, test_rig_id: nil}
   defp create_device(_) do
@@ -333,6 +334,49 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
       assert html =~ ~s(value="APP_ID")
       assert html =~ ~s(value="com.example")
       refute has_element?(show_live, "input[name=\"maestro[steps][0][arguments][1][key]\"]")
+    end
+
+    test "shows the currently running step under an executing task", %{
+      conn: conn,
+      device: device
+    } do
+      task =
+        task_fixture(%{
+          status: :executing,
+          steps: [
+            step_attrs(%{
+              device_id: device.id,
+              status: :completed,
+              data: %{
+                "maestro_flow" => "appId: com.first\n---\n- launchApp",
+                "maestro_arguments" => %{}
+              }
+            }),
+            step_attrs(%{
+              device_id: device.id,
+              status: :executing,
+              data: %{
+                "maestro_flow" => "appId: com.running.app\n---\n- launchApp",
+                "maestro_arguments" => %{}
+              }
+            }),
+            step_attrs(%{device_id: device.id, status: :pending})
+          ]
+        })
+
+      {:ok, show_live, html} = live(conn, ~p"/devices/#{device}")
+
+      assert html =~ "Running step 2 of 3"
+      assert html =~ "com.running.app"
+      assert has_element?(show_live, "#tasks-#{task.id}-running-step")
+    end
+
+    test "does not show a running step for pending tasks", %{conn: conn, device: device} do
+      task_fixture(%{steps: [step_attrs(%{device_id: device.id})]})
+
+      {:ok, _show_live, html} = live(conn, ~p"/devices/#{device}")
+
+      refute html =~ "Running step"
     end
 
     test "updates device and returns to show", %{conn: conn, device: device} do

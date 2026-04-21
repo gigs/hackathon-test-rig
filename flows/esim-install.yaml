@@ -36,10 +36,3 @@ appId: com.android.settings
       - extendedWaitUntil:
           visible:
             text: Activate your eSIM
-- pressKey: BACK
-- waitForAnimationToEnd
-- pressKey: BACK
-- waitForAnimationToEnd
-- pressKey: BACK
-- waitForAnimationToEnd
-- runFlow: "enable-esim.yaml"

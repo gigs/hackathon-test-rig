@@ -252,23 +252,39 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
         <div
           :for={{dom_id, task} <- @streams.tasks}
           id={dom_id}
-          class="flex items-center justify-between gap-4 border-b border-base-200 py-3"
+          class="border-b border-base-200 py-3"
         >
-          <div class="flex items-center gap-3">
-            <span class={["badge", task_status_class(task.status)]}>
-              {task.status}
-            </span>
-            <div>
-              <div class="text-sm font-medium">
-                Task #{task.id} · {pluralize(length(task.steps), "step")}
-              </div>
-              <div class="text-xs text-base-content/60">
-                {format_scheduled(task.scheduled_time)} · max {task.maximum_execution_time}s
+          <div class="flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <span class={["badge", task_status_class(task.status)]}>
+                {task.status}
+              </span>
+              <div>
+                <div class="text-sm font-medium">
+                  Task #{task.id} · {pluralize(length(task.steps), "step")}
+                </div>
+                <div class="text-xs text-base-content/60">
+                  {format_scheduled(task.scheduled_time)} · max {task.maximum_execution_time}s
+                </div>
               </div>
             </div>
+            <div class="text-xs text-base-content/60">
+              {scheduled_label(task.scheduled_time)}
+            </div>
           </div>
-          <div class="text-xs text-base-content/60">
-            {scheduled_label(task.scheduled_time)}
+
+          <div
+            :if={running = running_step(task)}
+            id={"#{dom_id}-running-step"}
+            class="mt-2 ml-14 flex items-center gap-2 text-xs text-base-content/70"
+          >
+            <span class="loading loading-spinner loading-xs text-info"></span>
+            <span>
+              Running step {running.position} of {running.total}
+            </span>
+            <span :if={running.label} class="text-base-content/50">
+              · {running.label}
+            </span>
           </div>
         </div>
       </div>
@@ -790,4 +806,42 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
   defp task_status_class(:executing), do: "badge-info"
   defp task_status_class(:completed), do: "badge-success"
   defp task_status_class(:failed), do: "badge-error"
+
+  defp running_step(%{status: :executing, steps: steps}) do
+    case Enum.find_index(steps, &(&1.status == :executing)) do
+      nil ->
+        nil
+
+      index ->
+        %{
+          position: index + 1,
+          total: length(steps),
+          label: step_label(Enum.at(steps, index))
+        }
+    end
+  end
+
+  defp running_step(_task), do: nil
+
+  defp step_label(%{type: :flow, data: %{"maestro_flow" => yaml}}) when is_binary(yaml) do
+    case flow_app_id(yaml) do
+      nil -> "flow"
+      id -> "flow · " <> id
+    end
+  end
+
+  defp step_label(%{type: :flow}), do: "flow"
+  defp step_label(%{type: :reservation}), do: "reservation"
+  defp step_label(_), do: nil
+
+  defp flow_app_id(yaml) do
+    yaml
+    |> String.split(~r/\r?\n/)
+    |> Enum.find_value(fn line ->
+      case Regex.run(~r/^\s*appId\s*:\s*(\S+)/, line) do
+        [_, value] -> String.trim(value, "\"") |> String.trim("'")
+        _ -> nil
+      end
+    end)
+  end
 end
