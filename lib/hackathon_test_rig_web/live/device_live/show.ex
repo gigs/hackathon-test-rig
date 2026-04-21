@@ -1,6 +1,7 @@
 defmodule HackathonTestRigWeb.DeviceLive.Show do
   use HackathonTestRigWeb, :live_view
 
+  alias HackathonTestRig.FlowTemplates
   alias HackathonTestRig.Inventory
   alias HackathonTestRig.Orchestrator
   alias HackathonTestRig.Workers.TaskScheduleWorker
@@ -60,6 +61,13 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
           />
         </div>
         <.input
+          field={@flow_form[:flow_template]}
+          type="select"
+          label="Flow template"
+          options={flow_template_options(@flow_templates)}
+        />
+        <.input
+          :if={@selected_template == @custom_template}
           field={@flow_form[:flow_yaml]}
           type="textarea"
           label="Flow YAML"
@@ -214,13 +222,21 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
 
     device = Inventory.get_device!(id)
     tasks = Orchestrator.list_tasks_for_device(device.id)
+    flow_templates = FlowTemplates.list()
+    default_template = default_template(flow_templates)
+    default_yaml = template_yaml(default_template)
+    initial_pairs = initial_arg_pairs(default_yaml)
 
     {:ok,
      socket
      |> assign(:page_title, "Show Device")
      |> assign(:device, device)
-     |> assign(:flow_form, blank_flow_form())
-     |> assign(:arg_pairs, blank_arg_pairs())
+     |> assign(:flow_templates, flow_templates)
+     |> assign(:custom_template, FlowTemplates.custom_name())
+     |> assign(:selected_template, default_template)
+     |> assign(:flow_form, blank_flow_form(default_template))
+     |> assign(:arg_pairs, initial_pairs)
+     |> assign(:arg_values, values_from_pairs(initial_pairs))
      |> assign(:tasks_empty?, tasks == [])
      |> stream(:tasks, tasks)}
   end
@@ -228,66 +244,69 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
   @impl true
   def handle_event("schedule_task", %{"maestro" => params}, socket) do
     device = socket.assigns.device
-    flow_yaml = params |> Map.get("flow_yaml", "") |> String.trim()
+    template = selected_template(params, socket.assigns.flow_templates)
     arg_pairs = arg_pairs_from_params(params)
     arguments = arguments_map_from_pairs(arg_pairs)
     scheduled_time = params |> Map.get("scheduled_time", "") |> String.trim()
     max_exec_time = params |> Map.get("maximum_execution_time", "") |> String.trim()
 
-    with {:flow, true} <- {:flow, flow_yaml != ""},
+    with {:ok, flow_yaml} <- resolve_flow_yaml(template, params),
          {:ok, task_attrs} <-
            build_task_attrs(device.id, flow_yaml, arguments, scheduled_time, max_exec_time),
          {:ok, _task} <- Orchestrator.create_task(task_attrs) do
       TaskScheduleWorker.ensure_scheduled()
       tasks = Orchestrator.list_tasks_for_device(device.id)
+      default_template = default_template(socket.assigns.flow_templates)
+      default_yaml = template_yaml(default_template)
+      default_pairs = initial_arg_pairs(default_yaml)
 
       {:noreply,
        socket
        |> put_flash(:info, "Task scheduled.")
-       |> assign(:flow_form, blank_flow_form())
-       |> assign(:arg_pairs, blank_arg_pairs())
+       |> assign(:selected_template, default_template)
+       |> assign(:flow_form, blank_flow_form(default_template))
+       |> assign(:arg_pairs, default_pairs)
+       |> assign(:arg_values, values_from_pairs(default_pairs))
        |> assign(:tasks_empty?, tasks == [])
        |> stream(:tasks, tasks, reset: true)}
     else
-      {:flow, false} ->
+      {:error, reason} ->
         {:noreply,
          socket
-         |> put_flash(:error, "Flow YAML can't be blank.")
-         |> assign(:flow_form, to_form(params, as: :maestro))
-         |> assign(:arg_pairs, arg_pairs)}
-
-      {:error, :invalid_scheduled_time} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Scheduled time is required and must be a valid datetime.")
-         |> assign(:flow_form, to_form(params, as: :maestro))
-         |> assign(:arg_pairs, arg_pairs)}
-
-      {:error, :invalid_max_exec_time} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Maximum execution time must be a positive integer.")
-         |> assign(:flow_form, to_form(params, as: :maestro))
-         |> assign(:arg_pairs, arg_pairs)}
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Could not create task: #{inspect(changeset.errors)}")
+         |> put_flash(:error, flow_error_message(reason))
+         |> assign(:selected_template, template)
          |> assign(:flow_form, to_form(params, as: :maestro))
          |> assign(:arg_pairs, arg_pairs)}
     end
   end
 
   def handle_event("form_changed", %{"maestro" => params}, socket) do
+    previous_template = socket.assigns.selected_template
+    template = selected_template(params, socket.assigns.flow_templates)
+    template_changed? = template != previous_template
+    custom = socket.assigns.custom_template
     current_pairs = arg_pairs_from_params(params)
-    extracted = params |> Map.get("flow_yaml", "") |> extract_yaml_arguments()
-    merged_pairs = add_missing_arg_pairs(current_pairs, extracted)
+    arg_values = Map.merge(socket.assigns.arg_values, values_from_pairs(current_pairs))
+
+    pairs =
+      cond do
+        template_changed? and template != custom ->
+          template_arg_pairs(template, arg_values)
+
+        template_changed? ->
+          current_pairs
+
+        true ->
+          source_yaml = effective_flow_yaml(template, params)
+          add_missing_arg_pairs(current_pairs, extract_yaml_arguments(source_yaml))
+      end
 
     {:noreply,
      socket
+     |> assign(:selected_template, template)
      |> assign(:flow_form, to_form(params, as: :maestro))
-     |> assign(:arg_pairs, merged_pairs)}
+     |> assign(:arg_pairs, pairs)
+     |> assign(:arg_values, arg_values)}
   end
 
   def handle_event("add_arg_pair", _params, socket) do
@@ -382,9 +401,10 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
     end
   end
 
-  defp blank_flow_form do
+  defp blank_flow_form(template) do
     to_form(
       %{
+        "flow_template" => template,
         "flow_yaml" => "",
         "scheduled_time" => default_scheduled_time(),
         "maximum_execution_time" => "300"
@@ -392,6 +412,80 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
       as: :maestro
     )
   end
+
+  defp flow_template_options(templates) do
+    custom = FlowTemplates.custom_name()
+
+    Enum.map(templates, fn name ->
+      label = if name == custom, do: "Custom", else: name
+      {label, name}
+    end)
+  end
+
+  defp default_template([first | _]), do: first
+  defp default_template(_), do: FlowTemplates.custom_name()
+
+  defp selected_template(params, available) do
+    name = Map.get(params, "flow_template", "")
+    if name in available, do: name, else: default_template(available)
+  end
+
+  defp template_yaml(name) do
+    case FlowTemplates.load(name) do
+      {:ok, yaml} -> yaml
+      :error -> ""
+    end
+  end
+
+  defp effective_flow_yaml(template, params) do
+    if template == FlowTemplates.custom_name() do
+      Map.get(params, "flow_yaml", "")
+    else
+      template_yaml(template)
+    end
+  end
+
+  defp resolve_flow_yaml(template, params) do
+    yaml = effective_flow_yaml(template, params) |> String.trim()
+
+    cond do
+      yaml == "" and template == FlowTemplates.custom_name() -> {:error, :blank_flow}
+      yaml == "" -> {:error, :unknown_template}
+      true -> {:ok, yaml}
+    end
+  end
+
+  defp initial_arg_pairs(yaml) do
+    case extract_yaml_arguments(yaml) do
+      [] -> blank_arg_pairs()
+      names -> Enum.map(names, fn name -> %{"key" => name, "value" => ""} end)
+    end
+  end
+
+  defp template_arg_pairs(template, arg_values) do
+    template
+    |> template_yaml()
+    |> extract_yaml_arguments()
+    |> Enum.map(fn name -> %{"key" => name, "value" => Map.get(arg_values, name, "")} end)
+  end
+
+  defp values_from_pairs(pairs) do
+    pairs
+    |> Enum.map(fn %{"key" => k, "value" => v} -> {String.trim(k), v} end)
+    |> Enum.reject(fn {k, _} -> k == "" end)
+    |> Map.new()
+  end
+
+  defp flow_error_message(:blank_flow), do: "Flow YAML can't be blank."
+  defp flow_error_message(:unknown_template), do: "Selected flow template could not be loaded."
+  defp flow_error_message(:invalid_scheduled_time),
+    do: "Scheduled time is required and must be a valid datetime."
+
+  defp flow_error_message(:invalid_max_exec_time),
+    do: "Maximum execution time must be a positive integer."
+
+  defp flow_error_message(%Ecto.Changeset{} = changeset),
+    do: "Could not create task: #{inspect(changeset.errors)}"
 
   defp blank_arg_pairs, do: [blank_pair()]
 
