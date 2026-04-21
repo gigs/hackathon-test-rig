@@ -201,6 +201,49 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
       assert html =~ "value=\"s3cret\""
     end
 
+    test "typing yaml adds argument rows for referenced ${VARS}, skipping escapes",
+         %{conn: conn, device: device} do
+      {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
+
+      params = %{
+        "scheduled_time" => "2026-04-21T15:30",
+        "maximum_execution_time" => "120",
+        "flow_yaml" =>
+          "appId: ${APP_ID}\n---\n- inputText: \"hello ${USERNAME}\"\n- runScript: \"\\${NOT_A_VAR}\"",
+        "arguments" => %{"0" => %{"key" => "", "value" => ""}}
+      }
+
+      html =
+        show_live
+        |> form("#schedule-task-form", maestro: params)
+        |> render_change()
+
+      assert html =~ ~s(value="APP_ID")
+      assert html =~ ~s(value="USERNAME")
+      refute html =~ ~s(value="NOT_A_VAR")
+    end
+
+    test "extracted vars do not overwrite existing user-entered keys or values",
+         %{conn: conn, device: device} do
+      {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
+
+      params = %{
+        "scheduled_time" => "2026-04-21T15:30",
+        "maximum_execution_time" => "120",
+        "flow_yaml" => "appId: ${APP_ID}",
+        "arguments" => %{"0" => %{"key" => "APP_ID", "value" => "com.example"}}
+      }
+
+      html =
+        show_live
+        |> form("#schedule-task-form", maestro: params)
+        |> render_change()
+
+      assert html =~ ~s(value="APP_ID")
+      assert html =~ ~s(value="com.example")
+      refute has_element?(show_live, "input[name=\"maestro[arguments][1][key]\"]")
+    end
+
     test "updates device and returns to show", %{conn: conn, device: device} do
       {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
 

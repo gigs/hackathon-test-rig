@@ -280,10 +280,14 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
   end
 
   def handle_event("form_changed", %{"maestro" => params}, socket) do
+    current_pairs = arg_pairs_from_params(params)
+    extracted = params |> Map.get("flow_yaml", "") |> extract_yaml_arguments()
+    merged_pairs = add_missing_arg_pairs(current_pairs, extracted)
+
     {:noreply,
      socket
      |> assign(:flow_form, to_form(params, as: :maestro))
-     |> assign(:arg_pairs, arg_pairs_from_params(params))}
+     |> assign(:arg_pairs, merged_pairs)}
   end
 
   def handle_event("add_arg_pair", _params, socket) do
@@ -463,6 +467,64 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
 
   defp blank_pair?(%{"key" => k, "value" => v}),
     do: String.trim(k) == "" and String.trim(v) == ""
+
+  defp extract_yaml_arguments(yaml) when is_binary(yaml) do
+    yaml
+    |> do_extract_args([])
+    |> Enum.reverse()
+    |> Enum.uniq()
+  end
+
+  defp extract_yaml_arguments(_), do: []
+
+  defp do_extract_args(<<>>, acc), do: acc
+  defp do_extract_args(<<"\\\\", rest::binary>>, acc), do: do_extract_args(rest, acc)
+  defp do_extract_args(<<"\\$", rest::binary>>, acc), do: do_extract_args(rest, acc)
+
+  defp do_extract_args(<<"${", rest::binary>>, acc) do
+    case parse_arg_name(rest, <<>>) do
+      {:ok, name, remaining} -> do_extract_args(remaining, [name | acc])
+      :error -> do_extract_args(rest, acc)
+    end
+  end
+
+  defp do_extract_args(<<_, rest::binary>>, acc), do: do_extract_args(rest, acc)
+
+  defp parse_arg_name(<<c, rest::binary>>, <<>>)
+       when (c >= ?A and c <= ?Z) or (c >= ?a and c <= ?z) or c == ?_ do
+    parse_arg_name(rest, <<c>>)
+  end
+
+  defp parse_arg_name(<<c, rest::binary>>, acc)
+       when (c >= ?A and c <= ?Z) or (c >= ?a and c <= ?z) or (c >= ?0 and c <= ?9) or c == ?_ do
+    parse_arg_name(rest, <<acc::binary, c>>)
+  end
+
+  defp parse_arg_name(<<?}, rest::binary>>, acc) when byte_size(acc) > 0 do
+    {:ok, acc, rest}
+  end
+
+  defp parse_arg_name(_, _), do: :error
+
+  defp add_missing_arg_pairs(pairs, []), do: pairs
+
+  defp add_missing_arg_pairs(pairs, names) do
+    existing_keys =
+      pairs
+      |> Enum.map(fn %{"key" => k} -> String.trim(k) end)
+      |> MapSet.new()
+
+    missing =
+      names
+      |> Enum.reject(&MapSet.member?(existing_keys, &1))
+      |> Enum.map(fn name -> %{"key" => name, "value" => ""} end)
+
+    cond do
+      missing == [] -> pairs
+      Enum.all?(pairs, &blank_pair?/1) -> missing
+      true -> pairs ++ missing
+    end
+  end
 
   defp format_scheduled(%DateTime{} = dt) do
     diff = DateTime.diff(DateTime.utc_now(), dt, :second)
