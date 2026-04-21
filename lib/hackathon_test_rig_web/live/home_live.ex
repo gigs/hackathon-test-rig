@@ -6,29 +6,15 @@ defmodule HackathonTestRigWeb.HomeLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Inventory.subscribe_phone_counts()
-
-    markers =
-      Inventory.list_test_rigs_with_phone_counts()
-      |> Enum.map(fn {rig, phone_count} ->
-        %{
-          id: rig.id,
-          name: rig.name,
-          hostname: rig.hostname,
-          location: rig.location,
-          phone_count: phone_count,
-          coordinates: Geocoding.coordinates(rig.location),
-          path: ~p"/test_rigs/#{rig}"
-        }
-      end)
-
-    {mapped, unmapped} = Enum.split_with(markers, & &1.coordinates)
+    if connected?(socket) do
+      Inventory.subscribe_phone_counts()
+      Inventory.subscribe_test_rigs()
+    end
 
     {:ok,
      socket
      |> assign(:page_title, "Test rig locations")
-     |> assign(:markers, mapped)
-     |> assign(:unmapped, unmapped)}
+     |> assign_markers()}
   end
 
   @impl true
@@ -48,6 +34,37 @@ defmodule HackathonTestRigWeb.HomeLive do
      |> assign(:markers, markers)
      |> assign(:unmapped, unmapped)
      |> push_event("world-map:counts", %{counts: payload})}
+  end
+
+  def handle_info(:test_rigs_changed, socket) do
+    socket = assign_markers(socket)
+
+    {:noreply,
+     push_event(socket, "world-map:sync", %{
+       markers: Enum.map(socket.assigns.markers, &marker_payload/1)
+     })}
+  end
+
+  defp assign_markers(socket) do
+    markers =
+      Inventory.list_test_rigs_with_phone_counts()
+      |> Enum.map(fn {rig, phone_count} ->
+        %{
+          id: rig.id,
+          name: rig.name,
+          hostname: rig.hostname,
+          location: rig.location,
+          phone_count: phone_count,
+          coordinates: Geocoding.coordinates(rig.location),
+          path: ~p"/test_rigs/#{rig}"
+        }
+      end)
+
+    {mapped, unmapped} = Enum.split_with(markers, & &1.coordinates)
+
+    socket
+    |> assign(:markers, mapped)
+    |> assign(:unmapped, unmapped)
   end
 
   @impl true
@@ -175,14 +192,14 @@ defmodule HackathonTestRigWeb.HomeLive do
           this.markers = new Map()
           this.markerData = new Map()
 
-          const icon = L.divIcon({
+          this.icon = L.divIcon({
             className: "rig-pin",
             html: '<span class="rig-pin__dot"></span><span class="rig-pin__ring"></span>',
             iconSize: [18, 18],
             iconAnchor: [9, 9],
           })
 
-          const popupHtml = (m) => `
+          this.popupHtml = (m) => `
             <div class="rig-popup">
               <div class="rig-popup__title">${m.name}</div>
               <div class="rig-popup__meta">${m.location}</div>
@@ -192,17 +209,7 @@ defmodule HackathonTestRigWeb.HomeLive do
             </div>
           `
 
-          markers.forEach(m => {
-            const marker = L.marker([m.lat, m.lng], { icon, title: m.name }).addTo(map)
-            marker.bindPopup(popupHtml(m))
-            this.markers.set(m.id, marker)
-            this.markerData.set(m.id, m)
-          })
-
-          if (markers.length > 0) {
-            const group = L.featureGroup(Array.from(this.markers.values()))
-            map.fitBounds(group.getBounds().pad(0.4), { maxZoom: 5 })
-          }
+          this.applyMarkers(markers, { fitBounds: true })
 
           this._onFocus = (e) => {
             const marker = this.markers.get(e.detail.id)
@@ -224,7 +231,7 @@ defmodule HackathonTestRigWeb.HomeLive do
               const marker = this.markers.get(id)
               if (!data || !marker) continue
               data.phone_count = count
-              marker.setPopupContent(popupHtml(data))
+              marker.setPopupContent(this.popupHtml(data))
               const open = marker.getPopup()
               if (open && open.isOpen()) {
                 const node = open.getElement()?.querySelector('[data-role="phone-count"]')
@@ -233,7 +240,49 @@ defmodule HackathonTestRigWeb.HomeLive do
             }
           })
 
+          this.handleEvent("world-map:sync", ({ markers }) => {
+            this.applyMarkers(markers, { fitBounds: false })
+          })
+
           setTimeout(() => map.invalidateSize(), 100)
+        },
+
+        applyMarkers(markers, { fitBounds }) {
+          const incoming = new Map(markers.map(m => [m.id, m]))
+
+          for (const [id, marker] of this.markers) {
+            if (!incoming.has(id)) {
+              marker.closePopup()
+              this.map.removeLayer(marker)
+              this.markers.delete(id)
+              this.markerData.delete(id)
+            }
+          }
+
+          markers.forEach(m => {
+            const existing = this.markers.get(m.id)
+            if (existing) {
+              const prev = this.markerData.get(m.id)
+              if (!prev || prev.lat !== m.lat || prev.lng !== m.lng) {
+                existing.setLatLng([m.lat, m.lng])
+              }
+              existing.options.title = m.name
+              existing.setPopupContent(this.popupHtml(m))
+              const popup = existing.getPopup()
+              if (popup && popup.isOpen()) popup.update()
+              this.markerData.set(m.id, m)
+            } else {
+              const marker = L.marker([m.lat, m.lng], { icon: this.icon, title: m.name }).addTo(this.map)
+              marker.bindPopup(this.popupHtml(m))
+              this.markers.set(m.id, marker)
+              this.markerData.set(m.id, m)
+            }
+          })
+
+          if (fitBounds && this.markers.size > 0) {
+            const group = L.featureGroup(Array.from(this.markers.values()))
+            this.map.fitBounds(group.getBounds().pad(0.4), { maxZoom: 5 })
+          }
         },
 
         destroyed() {

@@ -9,6 +9,7 @@ defmodule HackathonTestRig.Inventory do
   alias HackathonTestRig.Inventory.TestRig
 
   @phone_counts_topic "inventory:phone_counts"
+  @test_rigs_topic "inventory:test_rigs"
 
   @doc """
   Subscribe the current process to phone-count change notifications.
@@ -19,12 +20,24 @@ defmodule HackathonTestRig.Inventory do
     Phoenix.PubSub.subscribe(HackathonTestRig.PubSub, @phone_counts_topic)
   end
 
+  @doc """
+  Subscribe the current process to test-rig change notifications.
+  The process will receive `:test_rigs_changed` messages on insert/update/delete.
+  """
+  def subscribe_test_rigs do
+    Phoenix.PubSub.subscribe(HackathonTestRig.PubSub, @test_rigs_topic)
+  end
+
   defp broadcast_phone_counts do
     Phoenix.PubSub.broadcast(
       HackathonTestRig.PubSub,
       @phone_counts_topic,
       {:phone_counts_changed, phone_counts_by_rig_id()}
     )
+  end
+
+  defp broadcast_test_rigs_changed do
+    Phoenix.PubSub.broadcast(HackathonTestRig.PubSub, @test_rigs_topic, :test_rigs_changed)
   end
 
   @doc """
@@ -96,9 +109,13 @@ defmodule HackathonTestRig.Inventory do
 
   """
   def create_test_rig(attrs) do
-    %TestRig{}
-    |> TestRig.changeset(attrs)
-    |> Repo.insert()
+    result =
+      %TestRig{}
+      |> TestRig.changeset(attrs)
+      |> Repo.insert()
+
+    with {:ok, _rig} <- result, do: broadcast_test_rigs_changed()
+    result
   end
 
   @doc """
@@ -114,9 +131,13 @@ defmodule HackathonTestRig.Inventory do
 
   """
   def update_test_rig(%TestRig{} = test_rig, attrs) do
-    test_rig
-    |> TestRig.changeset(attrs)
-    |> Repo.update()
+    result =
+      test_rig
+      |> TestRig.changeset(attrs)
+      |> Repo.update()
+
+    with {:ok, _rig} <- result, do: broadcast_test_rigs_changed()
+    result
   end
 
   @doc """
@@ -132,7 +153,9 @@ defmodule HackathonTestRig.Inventory do
 
   """
   def delete_test_rig(%TestRig{} = test_rig) do
-    Repo.delete(test_rig)
+    result = Repo.delete(test_rig)
+    with {:ok, _rig} <- result, do: broadcast_test_rigs_changed()
+    result
   end
 
   @doc """
