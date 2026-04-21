@@ -233,6 +233,7 @@ defmodule HackathonTestRig.Orchestrator do
 
     step.data
     |> Map.take(["maestro_flow", "maestro_arguments"])
+    |> Map.put("maestro_platform", Device.platform(device))
     |> MaestroFlowWorker.new(queue: Device.queue_name(device))
     |> Oban.insert()
   end

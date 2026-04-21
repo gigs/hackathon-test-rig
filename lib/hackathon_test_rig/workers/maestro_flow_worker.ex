@@ -6,6 +6,8 @@ defmodule HackathonTestRig.Workers.MaestroFlowWorker do
     * `"maestro_flow"` - the flow YAML contents (string)
     * `"maestro_arguments"` - a `%{string => string}` map of env vars
       passed to maestro via `-e KEY=VALUE`
+    * `"maestro_platform"` - platform to target, either `"ios"` or `"android"`,
+      passed to maestro via `--platform VALUE`
 
   The flow YAML is materialised to a temp file `flow-<job_id>.yaml` for the
   duration of the run and removed afterwards. Combined stdout/stderr is
@@ -17,7 +19,11 @@ defmodule HackathonTestRig.Workers.MaestroFlowWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{id: job_id, args: args}) do
-    %{"maestro_flow" => flow_yaml, "maestro_arguments" => maestro_arguments} = args
+    %{
+      "maestro_flow" => flow_yaml,
+      "maestro_arguments" => maestro_arguments,
+      "maestro_platform" => maestro_platform
+    } = args
 
     flow_path = Path.join(System.tmp_dir!(), "flow-#{job_id}.yaml")
     results_path = Path.join(results_dir(), "results-#{job_id}.txt")
@@ -29,8 +35,14 @@ defmodule HackathonTestRig.Workers.MaestroFlowWorker do
       env_args =
         Enum.flat_map(maestro_arguments, fn {k, v} -> ["-e", "#{String.upcase(k)}=#{v}"] end)
 
+      platform_args = ["--platform", maestro_platform]
+
       {output, exit_code} =
-        System.cmd("maestro-runner", ["test"] ++ env_args ++ [flow_path], stderr_to_stdout: true)
+        System.cmd(
+          "maestro-runner",
+          platform_args ++ ["test"] ++ env_args ++ [flow_path],
+          stderr_to_stdout: true
+        )
 
       File.write!(results_path, output)
 

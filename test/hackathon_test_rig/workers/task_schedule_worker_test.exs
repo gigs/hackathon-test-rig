@@ -37,7 +37,12 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorkerTest do
       task = task_fixture(%{steps: [step_attrs(%{device_id: device.id})]})
 
       {:ok, _} =
-        MaestroFlowWorker.new(%{"maestro_flow" => "x", "maestro_arguments" => %{}},
+        MaestroFlowWorker.new(
+          %{
+            "maestro_flow" => "x",
+            "maestro_arguments" => %{},
+            "maestro_platform" => "android"
+          },
           queue: Device.queue_name(device)
         )
         |> Oban.insert()
