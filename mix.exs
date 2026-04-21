@@ -67,7 +67,8 @@ defmodule HackathonTestRig.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:oban, "~> 2.21"}
+      {:oban, "~> 2.21"},
+      {:oban_web, "~> 2.12"}
     ]
   end
 
