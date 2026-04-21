@@ -5,7 +5,11 @@ defmodule HackathonTestRigWeb.TestRigLiveTest do
   import HackathonTestRig.InventoryFixtures
 
   @create_attrs %{name: "some name", location: "some location", hostname: "some hostname"}
-  @update_attrs %{name: "some updated name", location: "some updated location", hostname: "some updated hostname"}
+  @update_attrs %{
+    name: "some updated name",
+    location: "some updated location",
+    hostname: "some updated hostname"
+  }
   @invalid_attrs %{name: nil, location: nil, hostname: nil}
   defp create_test_rig(_) do
     test_rig = test_rig_fixture()

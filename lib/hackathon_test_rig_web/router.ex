@@ -50,7 +50,7 @@ defmodule HackathonTestRigWeb.Router do
 
       live_dashboard "/dashboard", metrics: HackathonTestRigWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
-      oban_dashboard "/oban"
+      oban_dashboard("/oban")
     end
   end
 end

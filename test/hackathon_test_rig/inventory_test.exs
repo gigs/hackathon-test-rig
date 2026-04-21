@@ -35,7 +35,12 @@ defmodule HackathonTestRig.InventoryTest do
 
     test "update_test_rig/2 with valid data updates the test_rig" do
       test_rig = test_rig_fixture()
-      update_attrs = %{name: "some updated name", location: "some updated location", hostname: "some updated hostname"}
+
+      update_attrs = %{
+        name: "some updated name",
+        location: "some updated location",
+        hostname: "some updated hostname"
+      }
 
       assert {:ok, %TestRig{} = test_rig} = Inventory.update_test_rig(test_rig, update_attrs)
       assert test_rig.name == "some updated name"
@@ -80,7 +85,13 @@ defmodule HackathonTestRig.InventoryTest do
 
     test "create_device/1 with valid data creates a device" do
       test_rig = test_rig_fixture()
-      valid_attrs = %{name: "some name", brand: "some brand", type: :smartphone, test_rig_id: test_rig.id}
+
+      valid_attrs = %{
+        name: "some name",
+        brand: "some brand",
+        type: :smartphone,
+        test_rig_id: test_rig.id
+      }
 
       assert {:ok, %Device{} = device} = Inventory.create_device(valid_attrs)
       assert device.name == "some name"

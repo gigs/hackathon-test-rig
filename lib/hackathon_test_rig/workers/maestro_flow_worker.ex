@@ -30,9 +30,7 @@ defmodule HackathonTestRig.Workers.MaestroFlowWorker do
         Enum.flat_map(maestro_arguments, fn {k, v} -> ["-e", "#{String.upcase(k)}=#{v}"] end)
 
       {output, exit_code} =
-        System.cmd("maestro-runner", ["test"] ++ env_args ++ [flow_path],
-          stderr_to_stdout: true
-        )
+        System.cmd("maestro-runner", ["test"] ++ env_args ++ [flow_path], stderr_to_stdout: true)
 
       File.write!(results_path, output)
 

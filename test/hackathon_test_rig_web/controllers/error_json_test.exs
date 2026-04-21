@@ -2,7 +2,9 @@ defmodule HackathonTestRigWeb.ErrorJSONTest do
   use HackathonTestRigWeb.ConnCase, async: true
 
   test "renders 404" do
-    assert HackathonTestRigWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}
+    assert HackathonTestRigWeb.ErrorJSON.render("404.json", %{}) == %{
+             errors: %{detail: "Not Found"}
+           }
   end
 
   test "renders 500" do

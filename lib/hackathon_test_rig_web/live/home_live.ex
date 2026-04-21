@@ -129,7 +129,10 @@ defmodule HackathonTestRigWeb.HomeLive do
                 </span>
               </button>
             </li>
-            <li :if={@unmapped != []} class="border-t border-base-300 pt-2 text-xs text-base-content/60">
+            <li
+              :if={@unmapped != []}
+              class="border-t border-base-300 pt-2 text-xs text-base-content/60"
+            >
               Unmapped locations:
               <span class="font-medium">
                 {Enum.map_join(@unmapped, ", ", & &1.location)}
