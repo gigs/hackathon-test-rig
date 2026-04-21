@@ -7,16 +7,19 @@ defmodule HackathonTestRig.OrchestratorFixtures do
   import HackathonTestRig.InventoryFixtures
 
   @doc """
-  Generate a flow attrs map.
+  Generate a task step attrs map.
   """
-  def flow_attrs(attrs \\ %{}) do
+  def step_attrs(attrs \\ %{}) do
     device_id = Map.get_lazy(attrs, :device_id, fn -> device_fixture().id end)
 
     Enum.into(attrs, %{
+      type: :flow,
       device_id: device_id,
       maximum_execution_time: 60,
-      maestro_flow: "appId: com.example\n---\n- launchApp",
-      maestro_arguments: %{"foo" => "bar"}
+      data: %{
+        "maestro_flow" => "appId: com.example\n---\n- launchApp",
+        "maestro_arguments" => %{"foo" => "bar"}
+      }
     })
   end
 
@@ -24,12 +27,12 @@ defmodule HackathonTestRig.OrchestratorFixtures do
   Generate a task.
   """
   def task_fixture(attrs \\ %{}) do
-    {flows_attrs, attrs} = Map.pop_lazy(attrs, :flows, fn -> [flow_attrs()] end)
+    {steps_attrs, attrs} = Map.pop_lazy(attrs, :steps, fn -> [step_attrs()] end)
 
     {:ok, task} =
       attrs
       |> Enum.into(%{
-        flows: flows_attrs,
+        steps: steps_attrs,
         maximum_execution_time: 300,
         scheduled_time: DateTime.utc_now() |> DateTime.truncate(:second)
       })

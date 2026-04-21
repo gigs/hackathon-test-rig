@@ -19,10 +19,10 @@ defmodule HackathonTestRig.OrchestratorTest do
     end
 
     test "create_task/1 with valid data creates a task" do
-      flow = flow_attrs()
+      step = step_attrs()
 
       attrs = %{
-        flows: [flow],
+        steps: [step],
         maximum_execution_time: 120,
         scheduled_time: DateTime.utc_now() |> DateTime.truncate(:second)
       }
@@ -30,26 +30,26 @@ defmodule HackathonTestRig.OrchestratorTest do
       assert {:ok, %Task{} = task} = Orchestrator.create_task(attrs)
       assert task.maximum_execution_time == 120
       assert task.status == :pending
-      assert [embedded_flow] = task.flows
-      assert embedded_flow.device_id == flow.device_id
-      assert embedded_flow.maestro_flow == flow.maestro_flow
-      assert embedded_flow.maestro_arguments == flow.maestro_arguments
+      assert [created_step] = task.steps
+      assert created_step.type == :flow
+      assert created_step.device_id == step.device_id
+      assert created_step.data == step.data
     end
 
-    test "create_task/1 with no flows returns an error changeset" do
+    test "create_task/1 with no steps returns an error changeset" do
       attrs = %{
-        flows: [],
+        steps: [],
         maximum_execution_time: 120,
         scheduled_time: DateTime.utc_now() |> DateTime.truncate(:second)
       }
 
       assert {:error, %Ecto.Changeset{} = changeset} = Orchestrator.create_task(attrs)
-      assert %{flows: _} = errors_on(changeset)
+      assert %{steps: _} = errors_on(changeset)
     end
 
-    test "create_task/1 with invalid flow returns an error changeset" do
+    test "create_task/1 with invalid step returns an error changeset" do
       attrs = %{
-        flows: [%{device_id: nil, maximum_execution_time: 0, maestro_flow: nil}],
+        steps: [%{type: :flow, device_id: nil, maximum_execution_time: 0, data: %{}}],
         maximum_execution_time: 120,
         scheduled_time: DateTime.utc_now() |> DateTime.truncate(:second)
       }
@@ -60,7 +60,7 @@ defmodule HackathonTestRig.OrchestratorTest do
     test "create_task/1 with invalid top-level data returns an error changeset" do
       assert {:error, %Ecto.Changeset{}} =
                Orchestrator.create_task(%{
-                 flows: nil,
+                 steps: nil,
                  maximum_execution_time: nil,
                  scheduled_time: nil
                })

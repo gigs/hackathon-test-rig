@@ -203,12 +203,15 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
        %{
          scheduled_time: scheduled_time,
          maximum_execution_time: max_exec_time,
-         flows: [
+         steps: [
            %{
+             type: :flow,
              device_id: device_id,
-             maestro_flow: flow_yaml,
-             maestro_arguments: arguments,
-             maximum_execution_time: max_exec_time
+             maximum_execution_time: max_exec_time,
+             data: %{
+               "maestro_flow" => flow_yaml,
+               "maestro_arguments" => arguments
+             }
            }
          ]
        }}

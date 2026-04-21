@@ -2,13 +2,15 @@ defmodule HackathonTestRig.Orchestrator do
   @moduledoc """
   The Orchestrator context.
 
-  Owns tasks: scheduled bundles of Maestro flows to run across devices.
+  Owns tasks: scheduled bundles of steps (Maestro flows, reservations, ...) to
+  run across devices.
   """
 
   import Ecto.Query, warn: false
   alias HackathonTestRig.Inventory
   alias HackathonTestRig.Inventory.Device
   alias HackathonTestRig.Orchestrator.Task
+  alias HackathonTestRig.Orchestrator.TaskStep
   alias HackathonTestRig.Repo
   alias HackathonTestRig.Workers.MaestroFlowWorker
 
@@ -31,31 +33,34 @@ defmodule HackathonTestRig.Orchestrator do
   Returns the list of tasks.
   """
   def list_tasks do
-    Repo.all(from t in Task, order_by: [asc: t.scheduled_time])
+    Repo.all(from t in Task, order_by: [asc: t.scheduled_time], preload: :steps)
   end
 
   @doc """
   Returns tasks with the given status.
   """
   def list_tasks_by_status(status) when status in [:pending, :executing, :completed, :failed] do
-    Repo.all(from t in Task, where: t.status == ^status, order_by: [asc: t.scheduled_time])
+    Repo.all(
+      from t in Task,
+        where: t.status == ^status,
+        order_by: [asc: t.scheduled_time],
+        preload: :steps
+    )
   end
 
   @doc """
-  Returns tasks that include a flow referencing the given device id.
+  Returns tasks that include a step referencing the given device id.
 
   Ordered with most recently scheduled first.
   """
   def list_tasks_for_device(device_id) do
     Repo.all(
       from t in Task,
-        where:
-          fragment(
-            "EXISTS (SELECT 1 FROM unnest(?) flow WHERE (flow->>'device_id')::bigint = ?)",
-            t.flows,
-            ^device_id
-          ),
-        order_by: [desc: t.scheduled_time]
+        join: s in assoc(t, :steps),
+        where: s.device_id == ^device_id,
+        distinct: true,
+        order_by: [desc: t.scheduled_time],
+        preload: :steps
     )
   end
 
@@ -66,7 +71,8 @@ defmodule HackathonTestRig.Orchestrator do
     Repo.all(
       from t in Task,
         where: t.status == :pending and t.scheduled_time <= ^now,
-        order_by: [asc: t.scheduled_time]
+        order_by: [asc: t.scheduled_time],
+        preload: :steps
     )
   end
 
@@ -75,7 +81,7 @@ defmodule HackathonTestRig.Orchestrator do
 
   Raises `Ecto.NoResultsError` if the Task does not exist.
   """
-  def get_task!(id), do: Repo.get!(Task, id)
+  def get_task!(id), do: Task |> Repo.get!(id) |> Repo.preload(:steps)
 
   @doc """
   Creates a task.
@@ -113,24 +119,22 @@ defmodule HackathonTestRig.Orchestrator do
       |> Ecto.Changeset.change(status: status)
       |> Repo.update()
 
-    with {:ok, _task} <- result, do: broadcast_tasks_changed()
-    result
+    with {:ok, task} <- result do
+      broadcast_tasks_changed()
+      {:ok, Repo.preload(task, :steps)}
+    end
   end
 
   @doc """
-  Updates fields on a single embedded flow at the given index.
+  Updates fields on a single task step.
   """
-  def update_flow(%Task{} = task, index, flow_attrs) when is_integer(index) do
-    updated_flows =
-      List.update_at(task.flows, index, fn flow -> struct!(flow, flow_attrs) end)
-
+  def update_step(%TaskStep{} = step, attrs) do
     result =
-      task
-      |> Ecto.Changeset.change()
-      |> Ecto.Changeset.put_embed(:flows, updated_flows)
+      step
+      |> Ecto.Changeset.change(attrs)
       |> Repo.update()
 
-    with {:ok, _task} <- result, do: broadcast_tasks_changed()
+    with {:ok, _step} <- result, do: broadcast_tasks_changed()
     result
   end
 
@@ -153,7 +157,7 @@ defmodule HackathonTestRig.Orchestrator do
   @doc """
   Drives the task pipeline one step forward.
 
-  Advances every executing task based on its current flow's Oban job state,
+  Advances every executing task based on its current step's Oban job state,
   then starts the next runnable pending task whose devices are all idle.
   """
   def run_scheduler do
@@ -176,71 +180,59 @@ defmodule HackathonTestRig.Orchestrator do
   end
 
   defp advance_task(task) do
-    case find_executing_flow(task) do
-      {flow, index} -> check_flow_job(task, flow, index)
+    case Enum.find(task.steps, &(&1.status == :executing)) do
       nil -> progress_task(task)
+      step -> check_step_job(task, step)
     end
   end
 
-  defp find_executing_flow(task) do
-    task.flows
-    |> Enum.with_index()
-    |> Enum.find(fn {flow, _} -> flow.status == :executing end)
-  end
-
-  defp check_flow_job(task, flow, index) do
-    case flow.job_id && Repo.get(Oban.Job, flow.job_id) do
+  defp check_step_job(task, step) do
+    case step.job_id && Repo.get(Oban.Job, step.job_id) do
       %Oban.Job{state: "completed"} ->
-        {:ok, task} = update_flow(task, index, status: :completed, job_id: nil)
-        progress_task(task)
+        {:ok, _step} = update_step(step, status: :completed, job_id: nil)
+        progress_task(reload_task(task))
 
       %Oban.Job{state: state} when state in ["discarded", "cancelled"] ->
-        {:ok, task} = update_flow(task, index, status: :failed, job_id: nil)
-        progress_task(task)
+        {:ok, _step} = update_step(step, status: :failed, job_id: nil)
+        progress_task(reload_task(task))
 
       _ ->
         :ok
     end
   end
 
+  defp reload_task(task), do: get_task!(task.id)
+
   defp progress_task(task) do
     cond do
-      Enum.any?(task.flows, &(&1.status == :failed)) ->
+      Enum.any?(task.steps, &(&1.status == :failed)) ->
         update_task_status(task, :failed)
 
-      Enum.all?(task.flows, &(&1.status == :completed)) ->
+      Enum.all?(task.steps, &(&1.status == :completed)) ->
         update_task_status(task, :completed)
 
       true ->
-        enqueue_next_pending_flow(task)
+        enqueue_next_pending_step(task)
     end
   end
 
-  defp enqueue_next_pending_flow(task) do
-    case pending_flow(task) do
+  defp enqueue_next_pending_step(task) do
+    case Enum.find(task.steps, &(&1.status == :pending)) do
       nil ->
         update_task_status(task, :completed)
 
-      {flow, index} ->
-        with {:ok, job} <- enqueue_flow_job(flow) do
-          update_flow(task, index, status: :executing, job_id: job.id)
+      step ->
+        with {:ok, job} <- enqueue_step_job(step) do
+          update_step(step, status: :executing, job_id: job.id)
         end
     end
   end
 
-  defp pending_flow(task) do
-    task.flows
-    |> Enum.with_index()
-    |> Enum.find(fn {flow, _} -> flow.status == :pending end)
-  end
+  defp enqueue_step_job(%TaskStep{type: :flow} = step) do
+    device = Inventory.get_device!(step.device_id)
 
-  defp enqueue_flow_job(flow) do
-    device = Inventory.get_device!(flow.device_id)
-
-    %{
-      "maestro_flow" => flow.maestro_flow,
-      "maestro_arguments" => flow.maestro_arguments
-    }
+    step.data
+    |> Map.take(["maestro_flow", "maestro_arguments"])
     |> MaestroFlowWorker.new(queue: Device.queue_name(device))
     |> Oban.insert()
   end
@@ -267,7 +259,7 @@ defmodule HackathonTestRig.Orchestrator do
   end
 
   defp task_queue_names(task) do
-    task.flows
+    task.steps
     |> Enum.map(& &1.device_id)
     |> Enum.uniq()
     |> Enum.map(&Inventory.get_device!/1)

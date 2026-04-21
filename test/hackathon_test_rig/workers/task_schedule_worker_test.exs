@@ -18,15 +18,15 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorkerTest do
       assert_enqueued(worker: TaskScheduleWorker, queue: :scheduler)
     end
 
-    test "starts the next runnable task and enqueues its first flow" do
+    test "starts the next runnable task and enqueues its first step" do
       device = device_fixture()
-      task = task_fixture(%{flows: [flow_attrs(%{device_id: device.id})]})
+      task = task_fixture(%{steps: [step_attrs(%{device_id: device.id})]})
 
       assert :ok = perform_job(TaskScheduleWorker, %{})
 
       task = Orchestrator.get_task!(task.id)
       assert task.status == :executing
-      assert [%{status: :executing, job_id: job_id}] = task.flows
+      assert [%{status: :executing, job_id: job_id}] = task.steps
       assert is_integer(job_id)
 
       assert_enqueued(worker: MaestroFlowWorker, queue: Device.queue_name(device))
@@ -34,7 +34,7 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorkerTest do
 
     test "skips a task whose device queue already has active jobs" do
       device = device_fixture()
-      task = task_fixture(%{flows: [flow_attrs(%{device_id: device.id})]})
+      task = task_fixture(%{steps: [step_attrs(%{device_id: device.id})]})
 
       {:ok, _} =
         MaestroFlowWorker.new(%{"maestro_flow" => "x", "maestro_arguments" => %{}},
@@ -44,76 +44,76 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorkerTest do
 
       assert :ok = perform_job(TaskScheduleWorker, %{})
 
-      assert %Task{status: :pending, flows: [%{status: :pending}]} =
+      assert %Task{status: :pending, steps: [%{status: :pending}]} =
                Orchestrator.get_task!(task.id)
     end
 
-    test "advances to the next flow when the current flow's job completed" do
+    test "advances to the next step when the current step's job completed" do
       device = device_fixture()
 
       task =
         task_fixture(%{
-          flows: [
-            flow_attrs(%{device_id: device.id}),
-            flow_attrs(%{device_id: device.id})
+          steps: [
+            step_attrs(%{device_id: device.id}),
+            step_attrs(%{device_id: device.id})
           ]
         })
 
       :ok = perform_job(TaskScheduleWorker, %{})
 
-      [first_flow, _] = Orchestrator.get_task!(task.id).flows
-      set_job_state(first_flow.job_id, "completed")
+      [first_step, _] = Orchestrator.get_task!(task.id).steps
+      set_job_state(first_step.job_id, "completed")
 
       :ok = perform_job(TaskScheduleWorker, %{})
 
       task = Orchestrator.get_task!(task.id)
       assert task.status == :executing
-      assert [%{status: :completed}, %{status: :executing, job_id: second_job_id}] = task.flows
+      assert [%{status: :completed}, %{status: :executing, job_id: second_job_id}] = task.steps
       assert is_integer(second_job_id)
     end
 
-    test "marks task as completed when the final flow completes" do
+    test "marks task as completed when the final step completes" do
       device = device_fixture()
-      task = task_fixture(%{flows: [flow_attrs(%{device_id: device.id})]})
+      task = task_fixture(%{steps: [step_attrs(%{device_id: device.id})]})
 
       :ok = perform_job(TaskScheduleWorker, %{})
 
-      [flow] = Orchestrator.get_task!(task.id).flows
-      set_job_state(flow.job_id, "completed")
+      [step] = Orchestrator.get_task!(task.id).steps
+      set_job_state(step.job_id, "completed")
 
       :ok = perform_job(TaskScheduleWorker, %{})
 
       task = Orchestrator.get_task!(task.id)
       assert task.status == :completed
-      assert [%{status: :completed}] = task.flows
+      assert [%{status: :completed}] = task.steps
     end
 
-    test "marks task as failed when a flow's job was discarded" do
+    test "marks task as failed when a step's job was discarded" do
       device = device_fixture()
 
       task =
         task_fixture(%{
-          flows: [
-            flow_attrs(%{device_id: device.id}),
-            flow_attrs(%{device_id: device.id})
+          steps: [
+            step_attrs(%{device_id: device.id}),
+            step_attrs(%{device_id: device.id})
           ]
         })
 
       :ok = perform_job(TaskScheduleWorker, %{})
 
-      [first_flow, _] = Orchestrator.get_task!(task.id).flows
-      set_job_state(first_flow.job_id, "discarded")
+      [first_step, _] = Orchestrator.get_task!(task.id).steps
+      set_job_state(first_step.job_id, "discarded")
 
       :ok = perform_job(TaskScheduleWorker, %{})
 
       task = Orchestrator.get_task!(task.id)
       assert task.status == :failed
-      assert [%{status: :failed}, %{status: :pending}] = task.flows
+      assert [%{status: :failed}, %{status: :pending}] = task.steps
 
       refute_enqueued(
         worker: MaestroFlowWorker,
         queue: Device.queue_name(device),
-        args: %{"maestro_flow" => Enum.at(task.flows, 1).maestro_flow}
+        args: %{"maestro_flow" => Enum.at(task.steps, 1).data["maestro_flow"]}
       )
     end
 
@@ -124,7 +124,7 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorkerTest do
       task =
         task_fixture(%{
           scheduled_time: future,
-          flows: [flow_attrs(%{device_id: device.id})]
+          steps: [step_attrs(%{device_id: device.id})]
         })
 
       :ok = perform_job(TaskScheduleWorker, %{})

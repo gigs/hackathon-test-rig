@@ -137,10 +137,11 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
       [task] = HackathonTestRig.Orchestrator.list_tasks_for_device(device.id)
       assert task.maximum_execution_time == 120
       assert task.scheduled_time == ~U[2026-04-21 15:30:00Z]
-      assert [flow] = task.flows
-      assert flow.device_id == device.id
-      assert flow.maestro_flow == params["flow_yaml"]
-      assert flow.maestro_arguments == %{"user" => "alice"}
+      assert [step] = task.steps
+      assert step.type == :flow
+      assert step.device_id == device.id
+      assert step.data["maestro_flow"] == params["flow_yaml"]
+      assert step.data["maestro_arguments"] == %{"user" => "alice"}
     end
 
     test "scheduling fails when flow YAML is blank", %{conn: conn, device: device} do
