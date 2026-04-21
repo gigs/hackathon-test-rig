@@ -1,0 +1,7 @@
+appId: com.android.settings
+commandTimeout: 10000
+---
+- launchApp: com.android.settings
+- tapOn: "Search settings"
+- inputText: "Wi-Fi"
+- assertVisible: "Wi-Fi"

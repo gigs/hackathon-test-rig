@@ -1,0 +1,6 @@
+appId: com.android.settings
+commandTimeout: 10000
+waitForIdleTimeout: 3000
+---
+- launchApp: com.android.settings
+- assertVisible: "Settings"
