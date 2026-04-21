@@ -10,8 +10,10 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorker do
 
   use Oban.Worker,
     queue: :scheduler,
-    max_attempts: 3,
+    max_attempts: 1,
     unique: [states: [:available, :scheduled, :executing, :retryable]]
+
+  require Logger
 
   alias HackathonTestRig.Orchestrator
 
@@ -19,8 +21,15 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorker do
 
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    Orchestrator.run_scheduler()
-    schedule_next_tick()
+    try do
+      Orchestrator.run_scheduler()
+    rescue
+      error ->
+        Logger.error("TaskScheduleWorker tick failed: #{Exception.message(error)}")
+    after
+      schedule_next_tick()
+    end
+
     :ok
   end
 
@@ -33,6 +42,11 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorker do
   end
 
   defp schedule_next_tick do
-    %{} |> new(schedule_in: @poll_interval_seconds) |> Oban.insert()
+    # Uniqueness is disabled here because this insert happens while the current
+    # job is still :executing, which would otherwise dedup the next tick against
+    # the currently-running one. The :scheduler queue has concurrency 1, so
+    # ticks serialize naturally; the Cron plugin keeps uniqueness enabled and
+    # acts as a safety net if the self-reschedule ever fails.
+    %{} |> new(schedule_in: @poll_interval_seconds, unique: false) |> Oban.insert()
   end
 end

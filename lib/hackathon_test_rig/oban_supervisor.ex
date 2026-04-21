@@ -23,7 +23,12 @@ defmodule HackathonTestRig.ObanSupervisor do
   def start_link do
     base = Application.fetch_env!(:hackathon_test_rig, Oban)
 
-    with {:ok, pid} <- Oban.start_link(Keyword.put(base, :queues, queues(base))) do
+    opts =
+      base
+      |> Keyword.put(:queues, queues(base))
+      |> Keyword.put(:plugins, plugins(base))
+
+    with {:ok, pid} <- Oban.start_link(opts) do
       maybe_bootstrap_scheduler(base)
       {:ok, pid}
     end
@@ -36,6 +41,19 @@ defmodule HackathonTestRig.ObanSupervisor do
       base_queues
     else
       base_queues ++ Inventory.oban_queues()
+    end
+  end
+
+  defp plugins(base) do
+    base_plugins = Keyword.get(base, :plugins, [])
+
+    if Keyword.has_key?(base, :testing) do
+      base_plugins
+    else
+      base_plugins ++
+        [
+          {Oban.Plugins.Cron, crontab: [{"* * * * *", TaskScheduleWorker}]}
+        ]
     end
   end
 
