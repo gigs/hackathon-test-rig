@@ -465,8 +465,21 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
     do: String.trim(k) == "" and String.trim(v) == ""
 
   defp format_scheduled(%DateTime{} = dt) do
-    Calendar.strftime(dt, "%Y-%m-%d %H:%M UTC")
+    diff = DateTime.diff(DateTime.utc_now(), dt, :second)
+
+    cond do
+      abs(diff) >= 86_400 -> Calendar.strftime(dt, "%Y-%m-%d %H:%M UTC")
+      diff >= 0 -> "#{relative_units(diff)} ago"
+      true -> "in #{relative_units(-diff)}"
+    end
   end
+
+  defp relative_units(seconds) when seconds < 60, do: pluralize(seconds, "second")
+  defp relative_units(seconds) when seconds < 3600, do: pluralize(div(seconds, 60), "minute")
+  defp relative_units(seconds), do: pluralize(div(seconds, 3600), "hour")
+
+  defp pluralize(1, unit), do: "1 #{unit}"
+  defp pluralize(n, unit), do: "#{n} #{unit}s"
 
   defp scheduled_label(%DateTime{} = dt) do
     case DateTime.compare(dt, DateTime.utc_now()) do
