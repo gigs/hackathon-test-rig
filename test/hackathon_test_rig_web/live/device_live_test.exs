@@ -29,6 +29,16 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
     }
   end
 
+  # The flow_yaml textarea only renders when a step's template is "custom".
+  # This switches the given step to custom so subsequent form/3 calls can find it.
+  defp switch_step_to_custom(show_live, step_id) do
+    show_live
+    |> form("#schedule-task-form",
+      maestro: %{"steps" => %{step_id => %{"flow_template" => "custom"}}}
+    )
+    |> render_change()
+  end
+
   describe "Index" do
     setup [:create_device]
 
@@ -118,11 +128,18 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
 
       assert html =~ "No tasks scheduled yet."
 
+      switch_step_to_custom(show_live, "0")
+
       params = %{
         "scheduled_time" => "2026-04-21T15:30",
         "maximum_execution_time" => "120",
-        "flow_yaml" => "appId: com.example\n---\n- launchApp",
-        "arguments" => %{"0" => %{"key" => "user", "value" => "alice"}}
+        "steps" => %{
+          "0" => %{
+            "flow_template" => "custom",
+            "flow_yaml" => "appId: com.example\n---\n- launchApp",
+            "arguments" => %{"0" => %{"key" => "user", "value" => "alice"}}
+          }
+        }
       }
 
       html =
@@ -140,18 +157,75 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
       assert [step] = task.steps
       assert step.type == :flow
       assert step.device_id == device.id
-      assert step.data["maestro_flow"] == params["flow_yaml"]
+      assert step.data["maestro_flow"] == params["steps"]["0"]["flow_yaml"]
       assert step.data["maestro_arguments"] == %{"user" => "alice"}
+    end
+
+    test "scheduling a multi-step task persists steps in order", %{conn: conn, device: device} do
+      {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
+
+      # Second step card.
+      show_live |> element("button[phx-click=\"add_step\"]") |> render_click()
+      switch_step_to_custom(show_live, "0")
+      switch_step_to_custom(show_live, "1")
+
+      params = %{
+        "scheduled_time" => "2026-04-21T15:30",
+        "maximum_execution_time" => "120",
+        "steps" => %{
+          "0" => %{
+            "flow_template" => "custom",
+            "flow_yaml" => "appId: com.first",
+            "arguments" => %{"0" => %{"key" => "STAGE", "value" => "one"}}
+          },
+          "1" => %{
+            "flow_template" => "custom",
+            "flow_yaml" => "appId: com.second",
+            "arguments" => %{"0" => %{"key" => "STAGE", "value" => "two"}}
+          }
+        }
+      }
+
+      show_live
+      |> form("#schedule-task-form", maestro: params)
+      |> render_submit()
+
+      [task] = HackathonTestRig.Orchestrator.list_tasks_for_device(device.id)
+      assert [first, second] = task.steps
+      assert first.data["maestro_flow"] == "appId: com.first"
+      assert first.data["maestro_arguments"] == %{"STAGE" => "one"}
+      assert second.data["maestro_flow"] == "appId: com.second"
+      assert second.data["maestro_arguments"] == %{"STAGE" => "two"}
+    end
+
+    test "removing a step drops it from the form", %{conn: conn, device: device} do
+      {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
+
+      show_live |> element("button[phx-click=\"add_step\"]") |> render_click()
+      assert has_element?(show_live, "[data-step-id=\"1\"]")
+
+      show_live
+      |> element("button[phx-click=\"remove_step\"][phx-value-id=\"1\"]")
+      |> render_click()
+
+      refute has_element?(show_live, "[data-step-id=\"1\"]")
     end
 
     test "scheduling fails when flow YAML is blank", %{conn: conn, device: device} do
       {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
 
+      switch_step_to_custom(show_live, "0")
+
       params = %{
         "scheduled_time" => "2026-04-21T15:30",
         "maximum_execution_time" => "120",
-        "flow_yaml" => "",
-        "arguments" => %{"0" => %{"key" => "", "value" => ""}}
+        "steps" => %{
+          "0" => %{
+            "flow_template" => "custom",
+            "flow_yaml" => "",
+            "arguments" => %{"0" => %{"key" => "", "value" => ""}}
+          }
+        }
       }
 
       html =
@@ -167,26 +241,29 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
       {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
 
       # Starts with a single blank row.
-      assert has_element?(show_live, "input[name=\"maestro[arguments][0][key]\"]")
-      refute has_element?(show_live, "input[name=\"maestro[arguments][1][key]\"]")
+      assert has_element?(show_live, "input[name=\"maestro[steps][0][arguments][0][key]\"]")
+      refute has_element?(show_live, "input[name=\"maestro[steps][0][arguments][1][key]\"]")
 
       show_live
-      |> element("button[phx-click=\"add_arg_pair\"]")
+      |> element("button[phx-click=\"add_arg_pair\"][phx-value-step=\"0\"]")
       |> render_click()
 
-      assert has_element?(show_live, "input[name=\"maestro[arguments][1][key]\"]")
+      assert has_element?(show_live, "input[name=\"maestro[steps][0][arguments][1][key]\"]")
 
       show_live
-      |> element("button[phx-click=\"remove_arg_pair\"][phx-value-index=\"1\"]")
+      |> element(
+        "button[phx-click=\"remove_arg_pair\"][phx-value-step=\"0\"][phx-value-index=\"1\"]"
+      )
       |> render_click()
 
-      refute has_element?(show_live, "input[name=\"maestro[arguments][1][key]\"]")
+      refute has_element?(show_live, "input[name=\"maestro[steps][0][arguments][1][key]\"]")
     end
 
     test "pasting env vars replaces blank rows with parsed pairs", %{conn: conn, device: device} do
       {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
 
       render_hook(show_live, "bulk_paste_args", %{
+        "step" => "0",
         "index" => 0,
         "pairs" => [
           %{"key" => "USER", "value" => "alice"},
@@ -205,12 +282,19 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
          %{conn: conn, device: device} do
       {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
 
+      switch_step_to_custom(show_live, "0")
+
       params = %{
         "scheduled_time" => "2026-04-21T15:30",
         "maximum_execution_time" => "120",
-        "flow_yaml" =>
-          "appId: ${APP_ID}\n---\n- inputText: \"hello ${USERNAME}\"\n- runScript: \"\\${NOT_A_VAR}\"",
-        "arguments" => %{"0" => %{"key" => "", "value" => ""}}
+        "steps" => %{
+          "0" => %{
+            "flow_template" => "custom",
+            "flow_yaml" =>
+              "appId: ${APP_ID}\n---\n- inputText: \"hello ${USERNAME}\"\n- runScript: \"\\${NOT_A_VAR}\"",
+            "arguments" => %{"0" => %{"key" => "", "value" => ""}}
+          }
+        }
       }
 
       html =
@@ -227,11 +311,18 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
          %{conn: conn, device: device} do
       {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
 
+      switch_step_to_custom(show_live, "0")
+
       params = %{
         "scheduled_time" => "2026-04-21T15:30",
         "maximum_execution_time" => "120",
-        "flow_yaml" => "appId: ${APP_ID}",
-        "arguments" => %{"0" => %{"key" => "APP_ID", "value" => "com.example"}}
+        "steps" => %{
+          "0" => %{
+            "flow_template" => "custom",
+            "flow_yaml" => "appId: ${APP_ID}",
+            "arguments" => %{"0" => %{"key" => "APP_ID", "value" => "com.example"}}
+          }
+        }
       }
 
       html =
@@ -241,7 +332,7 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
 
       assert html =~ ~s(value="APP_ID")
       assert html =~ ~s(value="com.example")
-      refute has_element?(show_live, "input[name=\"maestro[arguments][1][key]\"]")
+      refute has_element?(show_live, "input[name=\"maestro[steps][0][arguments][1][key]\"]")
     end
 
     test "updates device and returns to show", %{conn: conn, device: device} do

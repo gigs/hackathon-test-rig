@@ -37,95 +37,153 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
       <div class="mt-10">
         <.header>
           Schedule a task
-          <:subtitle>Queue a Maestro flow to run on this device now or later.</:subtitle>
+          <:subtitle>Queue a sequence of Maestro flows to run on this device now or later.</:subtitle>
         </.header>
       </div>
 
       <.form
-        for={@flow_form}
+        for={@task_form}
         id="schedule-task-form"
         phx-submit="schedule_task"
         phx-change="form_changed"
       >
         <div class="grid gap-4 sm:grid-cols-2">
           <.input
-            field={@flow_form[:scheduled_time]}
+            field={@task_form[:scheduled_time]}
             type="datetime-local"
             label="Scheduled time (UTC)"
           />
           <.input
-            field={@flow_form[:maximum_execution_time]}
+            field={@task_form[:maximum_execution_time]}
             type="number"
             label="Maximum execution time (seconds)"
             min="1"
           />
         </div>
-        <.input
-          field={@flow_form[:flow_template]}
-          type="select"
-          label="Flow template"
-          options={flow_template_options(@flow_templates)}
-        />
-        <.input
-          :if={@selected_template == @custom_template}
-          field={@flow_form[:flow_yaml]}
-          type="textarea"
-          label="Flow YAML"
-          rows="12"
-          class="w-full textarea font-mono"
-          placeholder="appId: com.example.app&#10;---&#10;- launchApp"
-        />
-        <fieldset class="fieldset">
-          <legend class="fieldset-legend">Arguments</legend>
-          <p class="text-xs text-base-content/60 mb-2">
-            Passed to maestro as <code>-e KEY=VALUE</code>. Paste <code>KEY=VALUE</code> env vars into any field to auto-fill multiple rows.
-          </p>
-          <div id="arguments-list" phx-hook=".ArgumentsPaste" class="flex flex-col gap-2">
-            <div
-              :for={{pair, index} <- Enum.with_index(@arg_pairs)}
-              id={"arg-row-#{index}"}
-              data-arg-row={index}
-              class="flex gap-2 items-center"
-            >
-              <input
-                type="text"
-                name={"maestro[arguments][#{index}][key]"}
-                value={pair["key"]}
-                placeholder="KEY"
-                autocomplete="off"
-                class="input input-bordered flex-1 font-mono"
-                data-arg-field="key"
-              />
-              <span class="text-base-content/40">=</span>
-              <input
-                type="text"
-                name={"maestro[arguments][#{index}][value]"}
-                value={pair["value"]}
-                placeholder="value"
-                autocomplete="off"
-                class="input input-bordered flex-1 font-mono"
-                data-arg-field="value"
-              />
-              <button
-                type="button"
-                phx-click="remove_arg_pair"
-                phx-value-index={index}
-                aria-label="Remove argument"
-                class="btn btn-ghost btn-sm btn-square"
-              >
-                <.icon name="hero-x-mark" />
-              </button>
+
+        <div class="mt-6 flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Steps</h2>
+          <button type="button" phx-click="add_step" class="btn btn-sm">
+            <.icon name="hero-plus" /> Add step
+          </button>
+        </div>
+
+        <div id="step-forms" class="mt-2 flex flex-col gap-4">
+          <div
+            :for={{step, position} <- Enum.with_index(@step_forms)}
+            id={"step-form-#{step.id}"}
+            data-step-id={step.id}
+            class="card bg-base-100 border border-base-200"
+          >
+            <div class="card-body gap-4">
+              <div class="flex items-center justify-between">
+                <h3 class="card-title text-base">Step {position + 1}</h3>
+                <button
+                  :if={length(@step_forms) > 1}
+                  type="button"
+                  phx-click="remove_step"
+                  phx-value-id={step.id}
+                  aria-label="Remove step"
+                  class="btn btn-ghost btn-sm btn-square"
+                >
+                  <.icon name="hero-trash" />
+                </button>
+              </div>
+
+              <label class="fieldset">
+                <span class="fieldset-legend">Flow template</span>
+                <select
+                  name={"maestro[steps][#{step.id}][flow_template]"}
+                  class="select select-bordered w-full"
+                >
+                  <option
+                    :for={{label, value} <- flow_template_options(@flow_templates)}
+                    value={value}
+                    selected={value == step.template}
+                  >
+                    {label}
+                  </option>
+                </select>
+              </label>
+
+              <label :if={step.template == @custom_template} class="fieldset">
+                <span class="fieldset-legend">Flow YAML</span>
+                <textarea
+                  name={"maestro[steps][#{step.id}][flow_yaml]"}
+                  rows="12"
+                  class="w-full textarea textarea-bordered font-mono"
+                  placeholder="appId: com.example.app&#10;---&#10;- launchApp"
+                >{step.yaml}</textarea>
+              </label>
+
+              <fieldset class="fieldset">
+                <legend class="fieldset-legend">Arguments</legend>
+                <p class="text-xs text-base-content/60 mb-2">
+                  Passed to maestro as <code>-e KEY=VALUE</code>. Paste <code>KEY=VALUE</code>
+                  env vars into any field to auto-fill multiple rows.
+                </p>
+                <div
+                  id={"arguments-list-#{step.id}"}
+                  phx-hook=".ArgumentsPaste"
+                  data-step-id={step.id}
+                  class="flex flex-col gap-2"
+                >
+                  <div
+                    :for={{pair, index} <- Enum.with_index(step.arg_pairs)}
+                    id={"arg-row-#{step.id}-#{index}"}
+                    data-arg-row={index}
+                    class="flex gap-2 items-center"
+                  >
+                    <input
+                      type="text"
+                      name={"maestro[steps][#{step.id}][arguments][#{index}][key]"}
+                      value={pair["key"]}
+                      placeholder="KEY"
+                      autocomplete="off"
+                      class="input input-bordered flex-1 font-mono"
+                      data-arg-field="key"
+                    />
+                    <span class="text-base-content/40">=</span>
+                    <input
+                      type="text"
+                      name={"maestro[steps][#{step.id}][arguments][#{index}][value]"}
+                      value={pair["value"]}
+                      placeholder="value"
+                      autocomplete="off"
+                      class="input input-bordered flex-1 font-mono"
+                      data-arg-field="value"
+                    />
+                    <button
+                      type="button"
+                      phx-click="remove_arg_pair"
+                      phx-value-step={step.id}
+                      phx-value-index={index}
+                      aria-label="Remove argument"
+                      class="btn btn-ghost btn-sm btn-square"
+                    >
+                      <.icon name="hero-x-mark" />
+                    </button>
+                  </div>
+                </div>
+                <div class="mt-2">
+                  <button
+                    type="button"
+                    phx-click="add_arg_pair"
+                    phx-value-step={step.id}
+                    class="btn btn-ghost btn-sm"
+                  >
+                    <.icon name="hero-plus" /> Add argument
+                  </button>
+                </div>
+              </fieldset>
             </div>
           </div>
-          <div class="mt-2">
-            <button type="button" phx-click="add_arg_pair" class="btn btn-ghost btn-sm">
-              <.icon name="hero-plus" /> Add argument
-            </button>
-          </div>
-        </fieldset>
-        <footer>
+        </div>
+
+        <footer class="mt-6">
           <.button phx-disable-with="Scheduling..." variant="primary">Schedule task</.button>
         </footer>
+
         <script :type={Phoenix.LiveView.ColocatedHook} name=".ArgumentsPaste">
           export default {
             mounted() {
@@ -145,9 +203,10 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
 
                 const row = target.closest("[data-arg-row]")
                 const index = row ? parseInt(row.dataset.argRow, 10) : 0
+                const stepId = this.el.dataset.stepId
 
                 e.preventDefault()
-                this.pushEvent("bulk_paste_args", {index, pairs})
+                this.pushEvent("bulk_paste_args", {step: stepId, index, pairs})
               })
 
               function parseEnvVars(text) {
@@ -201,7 +260,9 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
               {task.status}
             </span>
             <div>
-              <div class="text-sm font-medium">Task #{task.id}</div>
+              <div class="text-sm font-medium">
+                Task #{task.id} · {pluralize(length(task.steps), "step")}
+              </div>
               <div class="text-xs text-base-content/60">
                 {format_scheduled(task.scheduled_time)} · max {task.maximum_execution_time}s
               </div>
@@ -224,8 +285,6 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
     tasks = Orchestrator.list_tasks_for_device(device.id)
     flow_templates = FlowTemplates.list()
     default_template = default_template(flow_templates)
-    default_yaml = template_yaml(default_template)
-    initial_pairs = initial_arg_pairs(default_yaml)
 
     {:ok,
      socket
@@ -233,10 +292,9 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
      |> assign(:device, device)
      |> assign(:flow_templates, flow_templates)
      |> assign(:custom_template, FlowTemplates.custom_name())
-     |> assign(:selected_template, default_template)
-     |> assign(:flow_form, blank_flow_form(default_template))
-     |> assign(:arg_pairs, initial_pairs)
-     |> assign(:arg_values, values_from_pairs(initial_pairs))
+     |> assign(:task_form, blank_task_form())
+     |> assign(:step_forms, [new_step_form("0", default_template)])
+     |> assign(:step_counter, 1)
      |> assign(:tasks_empty?, tasks == [])
      |> stream(:tasks, tasks)}
   end
@@ -244,29 +302,27 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
   @impl true
   def handle_event("schedule_task", %{"maestro" => params}, socket) do
     device = socket.assigns.device
-    template = selected_template(params, socket.assigns.flow_templates)
-    arg_pairs = arg_pairs_from_params(params)
-    arguments = arguments_map_from_pairs(arg_pairs)
+    custom = socket.assigns.custom_template
+    available = socket.assigns.flow_templates
     scheduled_time = params |> Map.get("scheduled_time", "") |> String.trim()
     max_exec_time = params |> Map.get("maximum_execution_time", "") |> String.trim()
 
-    with {:ok, flow_yaml} <- resolve_flow_yaml(template, params),
+    step_forms = sync_step_forms(socket.assigns.step_forms, params, available, custom)
+
+    with {:ok, step_datas} <- build_step_datas(step_forms, custom),
          {:ok, task_attrs} <-
-           build_task_attrs(device.id, flow_yaml, arguments, scheduled_time, max_exec_time),
+           build_task_attrs(device.id, step_datas, scheduled_time, max_exec_time),
          {:ok, _task} <- Orchestrator.create_task(task_attrs) do
       TaskScheduleWorker.ensure_scheduled()
       tasks = Orchestrator.list_tasks_for_device(device.id)
-      default_template = default_template(socket.assigns.flow_templates)
-      default_yaml = template_yaml(default_template)
-      default_pairs = initial_arg_pairs(default_yaml)
+      default_template = default_template(available)
 
       {:noreply,
        socket
        |> put_flash(:info, "Task scheduled.")
-       |> assign(:selected_template, default_template)
-       |> assign(:flow_form, blank_flow_form(default_template))
-       |> assign(:arg_pairs, default_pairs)
-       |> assign(:arg_values, values_from_pairs(default_pairs))
+       |> assign(:task_form, blank_task_form())
+       |> assign(:step_forms, [new_step_form("0", default_template)])
+       |> assign(:step_counter, 1)
        |> assign(:tasks_empty?, tasks == [])
        |> stream(:tasks, tasks, reset: true)}
     else
@@ -274,58 +330,68 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
         {:noreply,
          socket
          |> put_flash(:error, flow_error_message(reason))
-         |> assign(:selected_template, template)
-         |> assign(:flow_form, to_form(params, as: :maestro))
-         |> assign(:arg_pairs, arg_pairs)}
+         |> assign(:task_form, to_form(params, as: :maestro))
+         |> assign(:step_forms, step_forms)}
     end
   end
 
   def handle_event("form_changed", %{"maestro" => params}, socket) do
-    previous_template = socket.assigns.selected_template
-    template = selected_template(params, socket.assigns.flow_templates)
-    template_changed? = template != previous_template
-    custom = socket.assigns.custom_template
-    current_pairs = arg_pairs_from_params(params)
-    arg_values = Map.merge(socket.assigns.arg_values, values_from_pairs(current_pairs))
-
-    pairs =
-      cond do
-        template_changed? and template != custom ->
-          template_arg_pairs(template, arg_values)
-
-        template_changed? ->
-          current_pairs
-
-        true ->
-          source_yaml = effective_flow_yaml(template, params)
-          add_missing_arg_pairs(current_pairs, extract_yaml_arguments(source_yaml))
-      end
+    step_forms =
+      sync_step_forms(
+        socket.assigns.step_forms,
+        params,
+        socket.assigns.flow_templates,
+        socket.assigns.custom_template
+      )
 
     {:noreply,
      socket
-     |> assign(:selected_template, template)
-     |> assign(:flow_form, to_form(params, as: :maestro))
-     |> assign(:arg_pairs, pairs)
-     |> assign(:arg_values, arg_values)}
+     |> assign(:task_form, to_form(params, as: :maestro))
+     |> assign(:step_forms, step_forms)}
   end
 
-  def handle_event("add_arg_pair", _params, socket) do
-    pairs = socket.assigns.arg_pairs ++ [blank_pair()]
-    {:noreply, assign(socket, :arg_pairs, pairs)}
+  def handle_event("add_step", _params, socket) do
+    id = Integer.to_string(socket.assigns.step_counter)
+    template = default_template(socket.assigns.flow_templates)
+
+    {:noreply,
+     socket
+     |> assign(:step_forms, socket.assigns.step_forms ++ [new_step_form(id, template)])
+     |> assign(:step_counter, socket.assigns.step_counter + 1)}
   end
 
-  def handle_event("remove_arg_pair", %{"index" => index}, socket) do
+  def handle_event("remove_step", %{"id" => id}, socket) do
+    step_forms = Enum.reject(socket.assigns.step_forms, &(&1.id == id))
+    step_forms = if step_forms == [], do: socket.assigns.step_forms, else: step_forms
+    {:noreply, assign(socket, :step_forms, step_forms)}
+  end
+
+  def handle_event("add_arg_pair", %{"step" => step_id}, socket) do
+    step_forms =
+      update_step(socket.assigns.step_forms, step_id, fn step ->
+        %{step | arg_pairs: step.arg_pairs ++ [blank_pair()]}
+      end)
+
+    {:noreply, assign(socket, :step_forms, step_forms)}
+  end
+
+  def handle_event("remove_arg_pair", %{"step" => step_id, "index" => index}, socket) do
     idx = String.to_integer(index)
 
-    pairs =
-      socket.assigns.arg_pairs
-      |> List.delete_at(idx)
-      |> ensure_at_least_one_pair()
+    step_forms =
+      update_step(socket.assigns.step_forms, step_id, fn step ->
+        pairs =
+          step.arg_pairs
+          |> List.delete_at(idx)
+          |> ensure_at_least_one_pair()
 
-    {:noreply, assign(socket, :arg_pairs, pairs)}
+        %{step | arg_pairs: pairs}
+      end)
+
+    {:noreply, assign(socket, :step_forms, step_forms)}
   end
 
-  def handle_event("bulk_paste_args", %{"index" => index, "pairs" => pairs}, socket) do
+  def handle_event("bulk_paste_args", %{"step" => step_id, "index" => index, "pairs" => pairs}, socket) do
     idx = if is_integer(index), do: index, else: String.to_integer(to_string(index))
 
     pasted =
@@ -338,10 +404,12 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
       end)
       |> Enum.reject(fn %{"key" => k} -> String.trim(k) == "" end)
 
-    current = socket.assigns.arg_pairs
-    updated = merge_pasted_pairs(current, idx, pasted)
+    step_forms =
+      update_step(socket.assigns.step_forms, step_id, fn step ->
+        %{step | arg_pairs: merge_pasted_pairs(step.arg_pairs, idx, pasted)}
+      end)
 
-    {:noreply, assign(socket, :arg_pairs, updated)}
+    {:noreply, assign(socket, :step_forms, step_forms)}
   end
 
   @impl true
@@ -354,24 +422,99 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
      |> stream(:tasks, tasks, reset: true)}
   end
 
-  defp build_task_attrs(device_id, flow_yaml, arguments, scheduled_time_str, max_exec_time_str) do
+  defp new_step_form(id, template) do
+    yaml = template_yaml(template)
+    pairs = initial_arg_pairs(yaml)
+
+    %{
+      id: id,
+      template: template,
+      yaml: "",
+      arg_pairs: pairs,
+      arg_values: values_from_pairs(pairs)
+    }
+  end
+
+  defp update_step(step_forms, id, fun) do
+    Enum.map(step_forms, fn
+      %{id: ^id} = step -> fun.(step)
+      step -> step
+    end)
+  end
+
+  defp sync_step_forms(step_forms, params, available, custom) do
+    steps_params = Map.get(params, "steps", %{})
+
+    Enum.map(step_forms, fn step ->
+      incoming = Map.get(steps_params, step.id, %{})
+      sync_step(step, incoming, available, custom)
+    end)
+  end
+
+  defp sync_step(step, incoming, available, custom) do
+    template = selected_template(incoming, available, step.template)
+    template_changed? = template != step.template
+
+    yaml =
+      if template == custom do
+        Map.get(incoming, "flow_yaml", step.yaml)
+      else
+        step.yaml
+      end
+
+    current_pairs = arg_pairs_from_params(incoming)
+    merged_values = Map.merge(step.arg_values, values_from_pairs(current_pairs))
+
+    pairs =
+      cond do
+        template_changed? and template != custom ->
+          template_arg_pairs(template, merged_values)
+
+        template_changed? ->
+          current_pairs
+
+        true ->
+          source_yaml = effective_flow_yaml(template, yaml, custom)
+          add_missing_arg_pairs(current_pairs, extract_yaml_arguments(source_yaml))
+      end
+
+    %{step | template: template, yaml: yaml, arg_pairs: pairs, arg_values: merged_values}
+  end
+
+  defp build_step_datas(step_forms, custom) do
+    Enum.reduce_while(step_forms, {:ok, []}, fn step, {:ok, acc} ->
+      case resolve_flow_yaml(step.template, step.yaml, custom) do
+        {:ok, yaml} ->
+          arguments = arguments_map_from_pairs(step.arg_pairs)
+          {:cont, {:ok, acc ++ [{yaml, arguments}]}}
+
+        {:error, reason} ->
+          {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp build_task_attrs(device_id, step_datas, scheduled_time_str, max_exec_time_str) do
     with {:ok, scheduled_time} <- parse_scheduled_time(scheduled_time_str),
          {:ok, max_exec_time} <- parse_max_exec_time(max_exec_time_str) do
+      steps =
+        Enum.map(step_datas, fn {flow_yaml, arguments} ->
+          %{
+            type: :flow,
+            device_id: device_id,
+            maximum_execution_time: max_exec_time,
+            data: %{
+              "maestro_flow" => flow_yaml,
+              "maestro_arguments" => arguments
+            }
+          }
+        end)
+
       {:ok,
        %{
          scheduled_time: scheduled_time,
          maximum_execution_time: max_exec_time,
-         steps: [
-           %{
-             type: :flow,
-             device_id: device_id,
-             maximum_execution_time: max_exec_time,
-             data: %{
-               "maestro_flow" => flow_yaml,
-               "maestro_arguments" => arguments
-             }
-           }
-         ]
+         steps: steps
        }}
     end
   end
@@ -401,11 +544,9 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
     end
   end
 
-  defp blank_flow_form(template) do
+  defp blank_task_form do
     to_form(
       %{
-        "flow_template" => template,
-        "flow_yaml" => "",
         "scheduled_time" => default_scheduled_time(),
         "maximum_execution_time" => "300"
       },
@@ -425,9 +566,9 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
   defp default_template([first | _]), do: first
   defp default_template(_), do: FlowTemplates.custom_name()
 
-  defp selected_template(params, available) do
-    name = Map.get(params, "flow_template", "")
-    if name in available, do: name, else: default_template(available)
+  defp selected_template(params, available, fallback) do
+    name = Map.get(params, "flow_template", fallback)
+    if name in available, do: name, else: fallback
   end
 
   defp template_yaml(name) do
@@ -437,19 +578,19 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
     end
   end
 
-  defp effective_flow_yaml(template, params) do
-    if template == FlowTemplates.custom_name() do
-      Map.get(params, "flow_yaml", "")
+  defp effective_flow_yaml(template, user_yaml, custom) do
+    if template == custom do
+      user_yaml
     else
       template_yaml(template)
     end
   end
 
-  defp resolve_flow_yaml(template, params) do
-    yaml = effective_flow_yaml(template, params) |> String.trim()
+  defp resolve_flow_yaml(template, user_yaml, custom) do
+    yaml = effective_flow_yaml(template, user_yaml, custom) |> String.trim()
 
     cond do
-      yaml == "" and template == FlowTemplates.custom_name() -> {:error, :blank_flow}
+      yaml == "" and template == custom -> {:error, :blank_flow}
       yaml == "" -> {:error, :unknown_template}
       true -> {:ok, yaml}
     end
@@ -467,6 +608,7 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
     |> template_yaml()
     |> extract_yaml_arguments()
     |> Enum.map(fn name -> %{"key" => name, "value" => Map.get(arg_values, name, "")} end)
+    |> ensure_at_least_one_pair()
   end
 
   defp values_from_pairs(pairs) do
@@ -478,6 +620,7 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
 
   defp flow_error_message(:blank_flow), do: "Flow YAML can't be blank."
   defp flow_error_message(:unknown_template), do: "Selected flow template could not be loaded."
+
   defp flow_error_message(:invalid_scheduled_time),
     do: "Scheduled time is required and must be a valid datetime."
 
