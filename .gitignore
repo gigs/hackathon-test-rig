@@ -1,1 +1,27 @@
+
+*.ez
+/_build/
+/.fetch
+/assets/node_modules/
+/cover/
+/deps/
+/doc/
+/priv/static/assets/
+/priv/static/cache_manifest.json
+/tmp/
+# Also ignore archive artifacts (built via "mix archive.build").
+# If the VM crashes, it generates a dump, let's ignore it too.
+# If you run "mix test --cover", coverage assets end up here.
+# Ignore .fetch files in case you like to edit your project deps locally.
+# Ignore assets that are produced by build tools.
+# Ignore digested assets cache.
+# Ignore package tarball (built via "mix hex.build").
+# In case you use Node.js/npm, you want to ignore these.
+# Temporary files, for example, from tests.
+# The directory Mix downloads your dependencies sources to.
+# The directory Mix will write compiled artifacts to.
+# Where 3rd-party dependencies like ExDoc output generated docs.
+erl_crash.dump
+hackathon_test_rig-*.tar
+npm-debug.log
 reports/
