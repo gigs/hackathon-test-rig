@@ -9,6 +9,7 @@ defmodule HackathonTestRig.ObanSupervisor do
   """
 
   alias HackathonTestRig.Inventory
+  alias HackathonTestRig.Workers.TaskScheduleWorker
 
   def child_spec(_opts) do
     %{
@@ -21,7 +22,11 @@ defmodule HackathonTestRig.ObanSupervisor do
 
   def start_link do
     base = Application.fetch_env!(:hackathon_test_rig, Oban)
-    Oban.start_link(Keyword.put(base, :queues, queues(base)))
+
+    with {:ok, pid} <- Oban.start_link(Keyword.put(base, :queues, queues(base))) do
+      maybe_bootstrap_scheduler(base)
+      {:ok, pid}
+    end
   end
 
   defp queues(base) do
@@ -31,6 +36,12 @@ defmodule HackathonTestRig.ObanSupervisor do
       base_queues
     else
       base_queues ++ Inventory.oban_queues()
+    end
+  end
+
+  defp maybe_bootstrap_scheduler(base) do
+    unless Keyword.has_key?(base, :testing) do
+      TaskScheduleWorker.ensure_scheduled()
     end
   end
 end

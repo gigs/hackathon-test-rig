@@ -13,7 +13,7 @@ config :hackathon_test_rig,
 
 config :hackathon_test_rig, Oban,
   engine: Oban.Engines.Basic,
-  queues: [default: 10],
+  queues: [default: 10, scheduler: 1],
   repo: HackathonTestRig.Repo
 
 # Configure the endpoint
