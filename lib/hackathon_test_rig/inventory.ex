@@ -22,6 +22,19 @@ defmodule HackathonTestRig.Inventory do
   end
 
   @doc """
+  Returns test rigs with their phone counts, as `{test_rig, phone_count}` tuples.
+  """
+  def list_test_rigs_with_phone_counts do
+    from(r in TestRig,
+      left_join: p in assoc(r, :phones),
+      group_by: r.id,
+      select: {r, count(p.id)},
+      order_by: [asc: r.name]
+    )
+    |> Repo.all()
+  end
+
+  @doc """
   Gets a single test_rig.
 
   Raises `Ecto.NoResultsError` if the Test rig does not exist.

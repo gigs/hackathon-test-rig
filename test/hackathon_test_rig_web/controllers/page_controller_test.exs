@@ -1,8 +1,10 @@
 defmodule HackathonTestRigWeb.PageControllerTest do
   use HackathonTestRigWeb.ConnCase
 
-  test "GET /", %{conn: conn} do
+  test "GET / renders the interactive world map", %{conn: conn} do
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"
+    html = html_response(conn, 200)
+    assert html =~ "Test Rig Network"
+    assert html =~ ~s(id="world-map")
   end
 end

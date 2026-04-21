@@ -17,7 +17,7 @@ defmodule HackathonTestRigWeb.Router do
   scope "/", HackathonTestRigWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", HomeLive, :index
 
     live "/test_rigs", TestRigLive.Index, :index
     live "/test_rigs/new", TestRigLive.Form, :new
