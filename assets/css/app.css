@@ -196,6 +196,16 @@
     -1px 0 0 var(--color-base-100);
 }
 
+[data-theme="dark"] .rig-label {
+  text-shadow: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .rig-label {
+    text-shadow: none;
+  }
+}
+
 .rig-label::before {
   display: none;
 }

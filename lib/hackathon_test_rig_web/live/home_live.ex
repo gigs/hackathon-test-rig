@@ -173,9 +173,15 @@ defmodule HackathonTestRigWeb.HomeLive do
         return window.__leafletLoader
       }
 
+      function isDarkTheme() {
+        const theme = document.documentElement.getAttribute("data-theme")
+        if (theme === "dark") return true
+        if (theme === "light") return false
+        return window.matchMedia("(prefers-color-scheme: dark)").matches
+      }
+
       function tileLayerUrl() {
-        const dark = document.documentElement.getAttribute("data-theme") === "dark"
-        return dark
+        return isDarkTheme()
           ? "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
           : "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
       }
@@ -233,6 +239,9 @@ defmodule HackathonTestRigWeb.HomeLive do
             this.tileLayer.setUrl(tileLayerUrl())
           }
           window.addEventListener("phx:set-theme", this._onThemeChange)
+
+          this._mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+          this._mediaQuery.addEventListener("change", this._onThemeChange)
 
           this.handleEvent("world-map:counts", ({ counts }) => {
             for (const [idStr, count] of Object.entries(counts)) {
@@ -304,6 +313,7 @@ defmodule HackathonTestRigWeb.HomeLive do
         destroyed() {
           window.removeEventListener("world-map:focus", this._onFocus)
           window.removeEventListener("phx:set-theme", this._onThemeChange)
+          this._mediaQuery?.removeEventListener("change", this._onThemeChange)
           if (this.map) this.map.remove()
         },
       }
