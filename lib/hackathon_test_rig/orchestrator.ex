@@ -196,6 +196,10 @@ defmodule HackathonTestRig.Orchestrator do
         {:ok, _step} = update_step(step, status: :failed, job_id: nil)
         progress_task(reload_task(task))
 
+      nil when not is_nil(step.job_id) ->
+        {:ok, _step} = update_step(step, status: :failed, job_id: nil)
+        progress_task(reload_task(task))
+
       _ ->
         :ok
     end
