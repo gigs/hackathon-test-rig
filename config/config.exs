@@ -11,6 +11,11 @@ config :hackathon_test_rig,
   ecto_repos: [HackathonTestRig.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :hackathon_test_rig, Oban,
+  engine: Oban.Engines.Basic,
+  queues: [default: 10],
+  repo: HackathonTestRig.Repo
+
 # Configure the endpoint
 config :hackathon_test_rig, HackathonTestRigWeb.Endpoint,
   url: [host: "localhost"],
