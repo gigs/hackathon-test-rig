@@ -102,6 +102,13 @@ defmodule HackathonTestRigWeb.HomeLive do
             </.link>
             <.link navigate={~p"/devices"} class="btn btn-ghost btn-sm">Devices</.link>
             <Layouts.theme_toggle />
+            <.link
+              href="/dev/oban"
+              class="btn btn-ghost btn-sm btn-circle"
+              aria-label="Oban dashboard"
+            >
+              <.icon name="hero-cog-6-tooth" class="size-5" />
+            </.link>
           </nav>
         </div>
       </div>

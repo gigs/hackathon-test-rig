@@ -52,6 +52,11 @@ defmodule HackathonTestRigWeb.Layouts do
           <li>
             <.theme_toggle />
           </li>
+          <li>
+            <.link href="/dev/oban" class="btn btn-ghost btn-circle" aria-label="Oban dashboard">
+              <.icon name="hero-cog-6-tooth" class="size-5" />
+            </.link>
+          </li>
         </ul>
       </div>
     </header>
