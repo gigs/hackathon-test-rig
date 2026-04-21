@@ -92,18 +92,17 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
 
               <label class="fieldset">
                 <span class="fieldset-legend">Flow template</span>
-                <select
-                  name={"maestro[steps][#{step.id}][flow_template]"}
-                  class="select select-bordered w-full"
-                >
-                  <option
-                    :for={{label, value} <- flow_template_options(@flow_templates)}
-                    value={value}
-                    selected={value == step.template}
-                  >
-                    {label}
-                  </option>
-                </select>
+                <div class="w-full select">
+                  <select name={"maestro[steps][#{step.id}][flow_template]"}>
+                    <option
+                      :for={{label, value} <- flow_template_options(@flow_templates)}
+                      value={value}
+                      selected={value == step.template}
+                    >
+                      {label}
+                    </option>
+                  </select>
+                </div>
               </label>
 
               <label :if={step.template == @custom_template} class="fieldset">
