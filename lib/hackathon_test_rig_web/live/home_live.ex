@@ -169,8 +169,8 @@ defmodule HackathonTestRigWeb.HomeLive do
       function tileLayerUrl() {
         const dark = document.documentElement.getAttribute("data-theme") === "dark"
         return dark
-          ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          ? "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
+          : "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
       }
 
       export default {
@@ -277,6 +277,12 @@ defmodule HackathonTestRigWeb.HomeLive do
             } else {
               const marker = L.marker([m.lat, m.lng], { icon: this.icon, title: m.name }).addTo(this.map)
               marker.bindPopup(this.popupHtml(m))
+              marker.bindTooltip(m.location, {
+                permanent: true,
+                direction: "right",
+                offset: [10, 0],
+                className: "rig-label",
+              })
               this.markers.set(m.id, marker)
               this.markerData.set(m.id, m)
             }
