@@ -110,6 +110,58 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
       assert html =~ device.name
     end
 
+    test "scheduling a task creates a pending task and shows it in history", %{
+      conn: conn,
+      device: device
+    } do
+      {:ok, show_live, html} = live(conn, ~p"/devices/#{device}")
+
+      assert html =~ "No tasks scheduled yet."
+
+      params = %{
+        "scheduled_time" => "2026-04-21T15:30",
+        "maximum_execution_time" => "120",
+        "flow_yaml" => "appId: com.example\n---\n- launchApp",
+        "arguments_yaml" => "user: alice"
+      }
+
+      html =
+        show_live
+        |> form("#schedule-task-form", maestro: params)
+        |> render_submit()
+
+      assert html =~ "Task scheduled."
+      assert html =~ "pending"
+      refute html =~ "No tasks scheduled yet."
+
+      [task] = HackathonTestRig.Orchestrator.list_tasks_for_device(device.id)
+      assert task.maximum_execution_time == 120
+      assert task.scheduled_time == ~U[2026-04-21 15:30:00Z]
+      assert [flow] = task.flows
+      assert flow.device_id == device.id
+      assert flow.maestro_flow == params["flow_yaml"]
+      assert flow.maestro_arguments == %{"user" => "alice"}
+    end
+
+    test "scheduling fails when flow YAML is blank", %{conn: conn, device: device} do
+      {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
+
+      params = %{
+        "scheduled_time" => "2026-04-21T15:30",
+        "maximum_execution_time" => "120",
+        "flow_yaml" => "",
+        "arguments_yaml" => ""
+      }
+
+      html =
+        show_live
+        |> form("#schedule-task-form", maestro: params)
+        |> render_submit()
+
+      assert html =~ "Flow YAML can&#39;t be blank."
+      assert HackathonTestRig.Orchestrator.list_tasks_for_device(device.id) == []
+    end
+
     test "updates device and returns to show", %{conn: conn, device: device} do
       {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
 

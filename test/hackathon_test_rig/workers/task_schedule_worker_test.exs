@@ -15,7 +15,7 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorkerTest do
   describe "perform/1" do
     test "no-ops and re-schedules when no tasks exist" do
       assert :ok = perform_job(TaskScheduleWorker, %{})
-      assert_enqueued worker: TaskScheduleWorker, queue: :scheduler
+      assert_enqueued(worker: TaskScheduleWorker, queue: :scheduler)
     end
 
     test "starts the next runnable task and enqueues its first flow" do
@@ -29,7 +29,7 @@ defmodule HackathonTestRig.Workers.TaskScheduleWorkerTest do
       assert [%{status: :executing, job_id: job_id}] = task.flows
       assert is_integer(job_id)
 
-      assert_enqueued worker: MaestroFlowWorker, queue: Device.queue_name(device)
+      assert_enqueued(worker: MaestroFlowWorker, queue: Device.queue_name(device))
     end
 
     test "skips a task whose device queue already has active jobs" do

@@ -13,6 +13,19 @@ defmodule HackathonTestRig.Orchestrator do
   alias HackathonTestRig.Workers.MaestroFlowWorker
 
   @active_job_states ~w(scheduled available executing retryable)
+  @tasks_topic "orchestrator:tasks"
+
+  @doc """
+  Subscribe the current process to task change notifications.
+  The process will receive `:tasks_changed` messages on task insert/update/delete.
+  """
+  def subscribe_tasks do
+    Phoenix.PubSub.subscribe(HackathonTestRig.PubSub, @tasks_topic)
+  end
+
+  defp broadcast_tasks_changed do
+    Phoenix.PubSub.broadcast(HackathonTestRig.PubSub, @tasks_topic, :tasks_changed)
+  end
 
   @doc """
   Returns the list of tasks.
@@ -26,6 +39,24 @@ defmodule HackathonTestRig.Orchestrator do
   """
   def list_tasks_by_status(status) when status in [:pending, :executing, :completed, :failed] do
     Repo.all(from t in Task, where: t.status == ^status, order_by: [asc: t.scheduled_time])
+  end
+
+  @doc """
+  Returns tasks that include a flow referencing the given device id.
+
+  Ordered with most recently scheduled first.
+  """
+  def list_tasks_for_device(device_id) do
+    Repo.all(
+      from t in Task,
+        where:
+          fragment(
+            "EXISTS (SELECT 1 FROM unnest(?) flow WHERE (flow->>'device_id')::bigint = ?)",
+            t.flows,
+            ^device_id
+          ),
+        order_by: [desc: t.scheduled_time]
+    )
   end
 
   @doc """
@@ -50,18 +81,26 @@ defmodule HackathonTestRig.Orchestrator do
   Creates a task.
   """
   def create_task(attrs) do
-    %Task{}
-    |> Task.changeset(attrs)
-    |> Repo.insert()
+    result =
+      %Task{}
+      |> Task.changeset(attrs)
+      |> Repo.insert()
+
+    with {:ok, _task} <- result, do: broadcast_tasks_changed()
+    result
   end
 
   @doc """
   Updates a task.
   """
   def update_task(%Task{} = task, attrs) do
-    task
-    |> Task.changeset(attrs)
-    |> Repo.update()
+    result =
+      task
+      |> Task.changeset(attrs)
+      |> Repo.update()
+
+    with {:ok, _task} <- result, do: broadcast_tasks_changed()
+    result
   end
 
   @doc """
@@ -69,9 +108,13 @@ defmodule HackathonTestRig.Orchestrator do
   """
   def update_task_status(%Task{} = task, status)
       when status in [:pending, :executing, :completed, :failed] do
-    task
-    |> Ecto.Changeset.change(status: status)
-    |> Repo.update()
+    result =
+      task
+      |> Ecto.Changeset.change(status: status)
+      |> Repo.update()
+
+    with {:ok, _task} <- result, do: broadcast_tasks_changed()
+    result
   end
 
   @doc """
@@ -81,17 +124,23 @@ defmodule HackathonTestRig.Orchestrator do
     updated_flows =
       List.update_at(task.flows, index, fn flow -> struct!(flow, flow_attrs) end)
 
-    task
-    |> Ecto.Changeset.change()
-    |> Ecto.Changeset.put_embed(:flows, updated_flows)
-    |> Repo.update()
+    result =
+      task
+      |> Ecto.Changeset.change()
+      |> Ecto.Changeset.put_embed(:flows, updated_flows)
+      |> Repo.update()
+
+    with {:ok, _task} <- result, do: broadcast_tasks_changed()
+    result
   end
 
   @doc """
   Deletes a task.
   """
   def delete_task(%Task{} = task) do
-    Repo.delete(task)
+    result = Repo.delete(task)
+    with {:ok, _task} <- result, do: broadcast_tasks_changed()
+    result
   end
 
   @doc """
