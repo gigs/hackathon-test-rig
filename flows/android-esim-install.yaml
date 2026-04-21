@@ -1,7 +1,7 @@
 appId: com.android.settings
 ---
 - launchApp
-- startRecording: "test-run"
+- startRecording: "install-esim"
 - tapOn:
     text: Network and Internet
 - scrollUntilVisible:
@@ -30,5 +30,16 @@ appId: com.android.settings
     text: Can't set up eSIM
 - tapOn:
     text: Set up
-    below:
-      text: Use a different SIM
+- retry:
+    maxRetries: "5"
+    commands:
+      - extendedWaitUntil:
+          visible:
+            text: Activate your eSIM
+- pressKey: BACK
+- waitForAnimationToEnd
+- pressKey: BACK
+- waitForAnimationToEnd
+- pressKey: BACK
+- waitForAnimationToEnd
+- runFlow: "enable-esim.yaml"

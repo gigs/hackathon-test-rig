@@ -1,0 +1,21 @@
+appId: com.android.settings
+---
+- launchApp
+- startRecording: "enable-esim"
+- tapOn:
+    text: Network and Internet
+- scrollUntilVisible:
+    element:
+      text: SIMs
+    direction: DOWN
+- tapOn:
+    text: SIMs
+- tapOn:
+    text: "(On|Off)" # Can't find the On
+    index: ${PERMANENT_SIMS}
+- tapOn:
+    text: Use this SIM
+- tapOn:
+    text: Turn on
+    rightOf:
+      text: Cancel
