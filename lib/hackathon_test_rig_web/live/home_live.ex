@@ -188,7 +188,7 @@ defmodule HackathonTestRigWeb.HomeLive do
           const map = L.map(this.el, {
             worldCopyJump: true,
             minZoom: 2,
-            zoomControl: true,
+            zoomControl: false,
             attributionControl: true,
           }).setView([25, 10], 2)
 
