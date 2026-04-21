@@ -61,65 +61,63 @@ defmodule HackathonTestRig.InventoryTest do
     end
   end
 
-  describe "phones" do
-    alias HackathonTestRig.Inventory.Phone
+  describe "devices" do
+    alias HackathonTestRig.Inventory.Device
 
     import HackathonTestRig.InventoryFixtures
 
-    @invalid_attrs %{name: nil, os_version: nil, type: nil, device_model: nil}
+    @invalid_attrs %{name: nil, brand: nil, type: nil}
 
-    test "list_phones/0 returns all phones" do
-      phone = phone_fixture()
-      assert Inventory.list_phones() == [phone]
+    test "list_devices/0 returns all devices" do
+      device = device_fixture()
+      assert Inventory.list_devices() == [device]
     end
 
-    test "get_phone!/1 returns the phone with given id" do
-      phone = phone_fixture()
-      assert Inventory.get_phone!(phone.id) == phone
+    test "get_device!/1 returns the device with given id" do
+      device = device_fixture()
+      assert Inventory.get_device!(device.id) == device
     end
 
-    test "create_phone/1 with valid data creates a phone" do
+    test "create_device/1 with valid data creates a device" do
       test_rig = test_rig_fixture()
-      valid_attrs = %{name: "some name", os_version: "some os_version", type: :android, device_model: "some device_model", test_rig_id: test_rig.id}
+      valid_attrs = %{name: "some name", brand: "some brand", type: :smartphone, test_rig_id: test_rig.id}
 
-      assert {:ok, %Phone{} = phone} = Inventory.create_phone(valid_attrs)
-      assert phone.name == "some name"
-      assert phone.os_version == "some os_version"
-      assert phone.type == :android
-      assert phone.device_model == "some device_model"
-      assert phone.test_rig_id == test_rig.id
+      assert {:ok, %Device{} = device} = Inventory.create_device(valid_attrs)
+      assert device.name == "some name"
+      assert device.brand == "some brand"
+      assert device.type == :smartphone
+      assert device.test_rig_id == test_rig.id
     end
 
-    test "create_phone/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = Inventory.create_phone(@invalid_attrs)
+    test "create_device/1 with invalid data returns error changeset" do
+      assert {:error, %Ecto.Changeset{}} = Inventory.create_device(@invalid_attrs)
     end
 
-    test "update_phone/2 with valid data updates the phone" do
-      phone = phone_fixture()
-      update_attrs = %{name: "some updated name", os_version: "some updated os_version", type: :ios, device_model: "some updated device_model"}
+    test "update_device/2 with valid data updates the device" do
+      device = device_fixture()
+      update_attrs = %{name: "some updated name", brand: "some updated brand", type: :tablet}
 
-      assert {:ok, %Phone{} = phone} = Inventory.update_phone(phone, update_attrs)
-      assert phone.name == "some updated name"
-      assert phone.os_version == "some updated os_version"
-      assert phone.type == :ios
-      assert phone.device_model == "some updated device_model"
+      assert {:ok, %Device{} = device} = Inventory.update_device(device, update_attrs)
+      assert device.name == "some updated name"
+      assert device.brand == "some updated brand"
+      assert device.type == :tablet
     end
 
-    test "update_phone/2 with invalid data returns error changeset" do
-      phone = phone_fixture()
-      assert {:error, %Ecto.Changeset{}} = Inventory.update_phone(phone, @invalid_attrs)
-      assert phone == Inventory.get_phone!(phone.id)
+    test "update_device/2 with invalid data returns error changeset" do
+      device = device_fixture()
+      assert {:error, %Ecto.Changeset{}} = Inventory.update_device(device, @invalid_attrs)
+      assert device == Inventory.get_device!(device.id)
     end
 
-    test "delete_phone/1 deletes the phone" do
-      phone = phone_fixture()
-      assert {:ok, %Phone{}} = Inventory.delete_phone(phone)
-      assert_raise Ecto.NoResultsError, fn -> Inventory.get_phone!(phone.id) end
+    test "delete_device/1 deletes the device" do
+      device = device_fixture()
+      assert {:ok, %Device{}} = Inventory.delete_device(device)
+      assert_raise Ecto.NoResultsError, fn -> Inventory.get_device!(device.id) end
     end
 
-    test "change_phone/1 returns a phone changeset" do
-      phone = phone_fixture()
-      assert %Ecto.Changeset{} = Inventory.change_phone(phone)
+    test "change_device/1 returns a device changeset" do
+      device = device_fixture()
+      assert %Ecto.Changeset{} = Inventory.change_device(device)
     end
   end
 end

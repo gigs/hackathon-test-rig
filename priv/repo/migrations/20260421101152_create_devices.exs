@@ -1,8 +1,8 @@
-defmodule HackathonTestRig.Repo.Migrations.CreatePhones do
+defmodule HackathonTestRig.Repo.Migrations.CreateDevices do
   use Ecto.Migration
 
   def change do
-    create table(:phones) do
+    create table(:devices) do
       add :name, :string
       add :type, :string
       add :device_model, :string
@@ -12,6 +12,6 @@ defmodule HackathonTestRig.Repo.Migrations.CreatePhones do
       timestamps(type: :utc_datetime)
     end
 
-    create index(:phones, [:test_rig_id])
+    create index(:devices, [:test_rig_id])
   end
 end

@@ -24,10 +24,10 @@ defmodule HackathonTestRigWeb.Router do
     live "/test_rigs/:id", TestRigLive.Show, :show
     live "/test_rigs/:id/edit", TestRigLive.Form, :edit
 
-    live "/phones", PhoneLive.Index, :index
-    live "/phones/new", PhoneLive.Form, :new
-    live "/phones/:id", PhoneLive.Show, :show
-    live "/phones/:id/edit", PhoneLive.Form, :edit
+    live "/devices", DeviceLive.Index, :index
+    live "/devices/new", DeviceLive.Form, :new
+    live "/devices/:id", DeviceLive.Show, :show
+    live "/devices/:id/edit", DeviceLive.Form, :edit
   end
 
   # Other scopes may use custom stacks.

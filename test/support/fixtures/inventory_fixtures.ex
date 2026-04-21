@@ -21,22 +21,21 @@ defmodule HackathonTestRig.InventoryFixtures do
   end
 
   @doc """
-  Generate a phone.
+  Generate a device.
   """
-  def phone_fixture(attrs \\ %{}) do
+  def device_fixture(attrs \\ %{}) do
     test_rig_id = Map.get_lazy(attrs, :test_rig_id, fn -> test_rig_fixture().id end)
 
-    {:ok, phone} =
+    {:ok, device} =
       attrs
       |> Enum.into(%{
-        device_model: "some device_model",
+        brand: "some brand",
         name: "some name",
-        os_version: "some os_version",
-        type: :android,
+        type: :smartphone,
         test_rig_id: test_rig_id
       })
-      |> HackathonTestRig.Inventory.create_phone()
+      |> HackathonTestRig.Inventory.create_device()
 
-    HackathonTestRig.Inventory.get_phone!(phone.id)
+    HackathonTestRig.Inventory.get_device!(device.id)
   end
 end

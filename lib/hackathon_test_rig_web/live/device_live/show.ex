@@ -1,8 +1,8 @@
-defmodule HackathonTestRigWeb.PhoneLive.Show do
+defmodule HackathonTestRigWeb.DeviceLive.Show do
   use HackathonTestRigWeb, :live_view
 
   alias HackathonTestRig.Inventory
-  alias HackathonTestRig.Inventory.Phone
+  alias HackathonTestRig.Inventory.Device
   alias HackathonTestRig.Workers.MaestroFlowWorker
 
   @impl true
@@ -10,26 +10,25 @@ defmodule HackathonTestRigWeb.PhoneLive.Show do
     ~H"""
     <Layouts.app flash={@flash}>
       <.header>
-        Phone {@phone.id}
-        <:subtitle>This is a phone record from your database.</:subtitle>
+        Device {@device.id}
+        <:subtitle>This is a device record from your database.</:subtitle>
         <:actions>
-          <.button navigate={~p"/phones"}>
+          <.button navigate={~p"/devices"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/phones/#{@phone}/edit?return_to=show"}>
-            <.icon name="hero-pencil-square" /> Edit phone
+          <.button variant="primary" navigate={~p"/devices/#{@device}/edit?return_to=show"}>
+            <.icon name="hero-pencil-square" /> Edit device
           </.button>
         </:actions>
       </.header>
 
       <.list>
-        <:item title="Name">{@phone.name}</:item>
-        <:item title="Type">{@phone.type}</:item>
-        <:item title="Device model">{@phone.device_model}</:item>
-        <:item title="OS version">{@phone.os_version}</:item>
+        <:item title="Brand">{@device.brand}</:item>
+        <:item title="Name">{@device.name}</:item>
+        <:item title="Type">{@device.type}</:item>
         <:item title="Test rig">
-          <.link :if={@phone.test_rig} navigate={~p"/test_rigs/#{@phone.test_rig}"}>
-            {@phone.test_rig.name}
+          <.link :if={@device.test_rig} navigate={~p"/test_rigs/#{@device.test_rig}"}>
+            {@device.test_rig.name}
           </.link>
         </:item>
       </.list>
@@ -37,7 +36,7 @@ defmodule HackathonTestRigWeb.PhoneLive.Show do
       <div class="mt-10">
         <.header>
           Run a Maestro flow
-          <:subtitle>Enqueue a Maestro job on this phone's queue.</:subtitle>
+          <:subtitle>Enqueue a Maestro job on this device's queue.</:subtitle>
         </.header>
       </div>
 
@@ -70,8 +69,8 @@ defmodule HackathonTestRigWeb.PhoneLive.Show do
   def mount(%{"id" => id}, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, "Show Phone")
-     |> assign(:phone, Inventory.get_phone!(id))
+     |> assign(:page_title, "Show Device")
+     |> assign(:device, Inventory.get_device!(id))
      |> assign(:flow_form, blank_flow_form())}
   end
 
@@ -82,15 +81,15 @@ defmodule HackathonTestRigWeb.PhoneLive.Show do
 
     with {:flow, true} <- {:flow, flow_yaml != ""},
          {:ok, arguments} <- parse_arguments_yaml(arguments_yaml) do
-      phone = socket.assigns.phone
+      device = socket.assigns.device
 
       %{"maestro_flow" => flow_yaml, "maestro_arguments" => arguments}
-      |> MaestroFlowWorker.new(queue: Phone.queue_name(phone))
+      |> MaestroFlowWorker.new(queue: Device.queue_name(device))
       |> Oban.insert!()
 
       {:noreply,
        socket
-       |> put_flash(:info, "Maestro flow enqueued on queue #{Phone.queue_name(phone)}.")
+       |> put_flash(:info, "Maestro flow enqueued on queue #{Device.queue_name(device)}.")
        |> assign(:flow_form, blank_flow_form())}
     else
       {:flow, false} ->

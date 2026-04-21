@@ -8,16 +8,16 @@ defmodule HackathonTestRig.Inventory do
 
   alias HackathonTestRig.Inventory.TestRig
 
-  @phone_counts_topic "inventory:phone_counts"
+  @device_counts_topic "inventory:device_counts"
   @test_rigs_topic "inventory:test_rigs"
 
   @doc """
-  Subscribe the current process to phone-count change notifications.
-  The process will receive `{:phone_counts_changed, counts_by_rig_id}` messages,
+  Subscribe the current process to device-count change notifications.
+  The process will receive `{:device_counts_changed, counts_by_rig_id}` messages,
   where `counts_by_rig_id` is a `%{test_rig_id => count}` map.
   """
-  def subscribe_phone_counts do
-    Phoenix.PubSub.subscribe(HackathonTestRig.PubSub, @phone_counts_topic)
+  def subscribe_device_counts do
+    Phoenix.PubSub.subscribe(HackathonTestRig.PubSub, @device_counts_topic)
   end
 
   @doc """
@@ -28,11 +28,11 @@ defmodule HackathonTestRig.Inventory do
     Phoenix.PubSub.subscribe(HackathonTestRig.PubSub, @test_rigs_topic)
   end
 
-  defp broadcast_phone_counts do
+  defp broadcast_device_counts do
     Phoenix.PubSub.broadcast(
       HackathonTestRig.PubSub,
-      @phone_counts_topic,
-      {:phone_counts_changed, phone_counts_by_rig_id()}
+      @device_counts_topic,
+      {:device_counts_changed, device_counts_by_rig_id()}
     )
   end
 
@@ -41,14 +41,14 @@ defmodule HackathonTestRig.Inventory do
   end
 
   @doc """
-  Returns a `%{test_rig_id => phone_count}` map covering every test rig,
-  including rigs with zero phones.
+  Returns a `%{test_rig_id => device_count}` map covering every test rig,
+  including rigs with zero devices.
   """
-  def phone_counts_by_rig_id do
+  def device_counts_by_rig_id do
     from(r in TestRig,
-      left_join: p in assoc(r, :phones),
+      left_join: d in assoc(r, :devices),
       group_by: r.id,
-      select: {r.id, count(p.id)}
+      select: {r.id, count(d.id)}
     )
     |> Repo.all()
     |> Map.new()
@@ -68,13 +68,13 @@ defmodule HackathonTestRig.Inventory do
   end
 
   @doc """
-  Returns test rigs with their phone counts, as `{test_rig, phone_count}` tuples.
+  Returns test rigs with their device counts, as `{test_rig, device_count}` tuples.
   """
-  def list_test_rigs_with_phone_counts do
+  def list_test_rigs_with_device_counts do
     from(r in TestRig,
-      left_join: p in assoc(r, :phones),
+      left_join: d in assoc(r, :devices),
       group_by: r.id,
-      select: {r, count(p.id)},
+      select: {r, count(d.id)},
       order_by: [asc: r.name]
     )
     |> Repo.all()
@@ -171,134 +171,134 @@ defmodule HackathonTestRig.Inventory do
     TestRig.changeset(test_rig, attrs)
   end
 
-  alias HackathonTestRig.Inventory.Phone
+  alias HackathonTestRig.Inventory.Device
 
   @doc """
-  Returns the list of phones.
+  Returns the list of devices.
 
   ## Examples
 
-      iex> list_phones()
-      [%Phone{}, ...]
+      iex> list_devices()
+      [%Device{}, ...]
 
   """
-  def list_phones do
-    Phone |> Repo.all() |> Repo.preload(:test_rig)
+  def list_devices do
+    Device |> Repo.all() |> Repo.preload(:test_rig)
   end
 
   @doc """
-  Returns the list of phones belonging to the given test rig id.
+  Returns the list of devices belonging to the given test rig id.
   """
-  def list_phones_for_test_rig(test_rig_id) do
-    from(p in Phone, where: p.test_rig_id == ^test_rig_id, order_by: [asc: p.name])
+  def list_devices_for_test_rig(test_rig_id) do
+    from(d in Device, where: d.test_rig_id == ^test_rig_id, order_by: [asc: d.name])
     |> Repo.all()
   end
 
   @doc """
-  Gets a single phone.
+  Gets a single device.
 
-  Raises `Ecto.NoResultsError` if the Phone does not exist.
+  Raises `Ecto.NoResultsError` if the Device does not exist.
 
   ## Examples
 
-      iex> get_phone!(123)
-      %Phone{}
+      iex> get_device!(123)
+      %Device{}
 
-      iex> get_phone!(456)
+      iex> get_device!(456)
       ** (Ecto.NoResultsError)
 
   """
-  def get_phone!(id), do: Phone |> Repo.get!(id) |> Repo.preload(:test_rig)
+  def get_device!(id), do: Device |> Repo.get!(id) |> Repo.preload(:test_rig)
 
   @doc """
-  Creates a phone.
+  Creates a device.
 
   ## Examples
 
-      iex> create_phone(%{field: value})
-      {:ok, %Phone{}}
+      iex> create_device(%{field: value})
+      {:ok, %Device{}}
 
-      iex> create_phone(%{field: bad_value})
+      iex> create_device(%{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_phone(attrs) do
+  def create_device(attrs) do
     result =
-      %Phone{}
-      |> Phone.changeset(attrs)
+      %Device{}
+      |> Device.changeset(attrs)
       |> Repo.insert()
 
-    with {:ok, _phone} <- result, do: broadcast_phone_counts()
+    with {:ok, _device} <- result, do: broadcast_device_counts()
     result
   end
 
   @doc """
-  Updates a phone.
+  Updates a device.
 
   ## Examples
 
-      iex> update_phone(phone, %{field: new_value})
-      {:ok, %Phone{}}
+      iex> update_device(device, %{field: new_value})
+      {:ok, %Device{}}
 
-      iex> update_phone(phone, %{field: bad_value})
+      iex> update_device(device, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_phone(%Phone{} = phone, attrs) do
+  def update_device(%Device{} = device, attrs) do
     result =
-      phone
-      |> Phone.changeset(attrs)
+      device
+      |> Device.changeset(attrs)
       |> Repo.update()
 
     with {:ok, updated} <- result,
-         true <- updated.test_rig_id != phone.test_rig_id do
-      broadcast_phone_counts()
+         true <- updated.test_rig_id != device.test_rig_id do
+      broadcast_device_counts()
     end
 
     result
   end
 
   @doc """
-  Deletes a phone.
+  Deletes a device.
 
   ## Examples
 
-      iex> delete_phone(phone)
-      {:ok, %Phone{}}
+      iex> delete_device(device)
+      {:ok, %Device{}}
 
-      iex> delete_phone(phone)
+      iex> delete_device(device)
       {:error, %Ecto.Changeset{}}
 
   """
-  def delete_phone(%Phone{} = phone) do
-    result = Repo.delete(phone)
-    with {:ok, _phone} <- result, do: broadcast_phone_counts()
+  def delete_device(%Device{} = device) do
+    result = Repo.delete(device)
+    with {:ok, _device} <- result, do: broadcast_device_counts()
     result
   end
 
   @doc """
-  Returns an `%Ecto.Changeset{}` for tracking phone changes.
+  Returns an `%Ecto.Changeset{}` for tracking device changes.
 
   ## Examples
 
-      iex> change_phone(phone)
-      %Ecto.Changeset{data: %Phone{}}
+      iex> change_device(device)
+      %Ecto.Changeset{data: %Device{}}
 
   """
-  def change_phone(%Phone{} = phone, attrs \\ %{}) do
-    Phone.changeset(phone, attrs)
+  def change_device(%Device{} = device, attrs \\ %{}) do
+    Device.changeset(device, attrs)
   end
 
   @doc """
-  Returns a `[{queue_name, concurrency}]` keyword list with one queue per phone.
+  Returns a `[{queue_name, concurrency}]` keyword list with one queue per device.
 
   Used to build the Oban queue list at application boot. Oban Pro supports
   adding queues dynamically at runtime; until we adopt that, the queue list
-  is fixed to the phones present when the app starts.
+  is fixed to the devices present when the app starts.
   """
   def oban_queues do
-    from(p in Phone, select: p.name, order_by: [asc: p.name])
+    from(d in Device, select: d.name, order_by: [asc: d.name])
     |> Repo.all()
-    |> Enum.map(fn name -> {Phone.queue_name(name), 1} end)
+    |> Enum.map(fn name -> {Device.queue_name(name), 1} end)
   end
 end

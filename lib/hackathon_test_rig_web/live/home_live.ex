@@ -7,7 +7,7 @@ defmodule HackathonTestRigWeb.HomeLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      Inventory.subscribe_phone_counts()
+      Inventory.subscribe_device_counts()
       Inventory.subscribe_test_rigs()
     end
 
@@ -18,16 +18,16 @@ defmodule HackathonTestRigWeb.HomeLive do
   end
 
   @impl true
-  def handle_info({:phone_counts_changed, counts}, socket) do
+  def handle_info({:device_counts_changed, counts}, socket) do
     update_count = fn marker ->
-      %{marker | phone_count: Map.get(counts, marker.id, 0)}
+      %{marker | device_count: Map.get(counts, marker.id, 0)}
     end
 
     markers = Enum.map(socket.assigns.markers, update_count)
     unmapped = Enum.map(socket.assigns.unmapped, update_count)
 
     payload =
-      Map.new(markers ++ unmapped, fn marker -> {marker.id, marker.phone_count} end)
+      Map.new(markers ++ unmapped, fn marker -> {marker.id, marker.device_count} end)
 
     {:noreply,
      socket
@@ -47,14 +47,14 @@ defmodule HackathonTestRigWeb.HomeLive do
 
   defp assign_markers(socket) do
     markers =
-      Inventory.list_test_rigs_with_phone_counts()
-      |> Enum.map(fn {rig, phone_count} ->
+      Inventory.list_test_rigs_with_device_counts()
+      |> Enum.map(fn {rig, device_count} ->
         %{
           id: rig.id,
           name: rig.name,
           hostname: rig.hostname,
           location: rig.location,
-          phone_count: phone_count,
+          device_count: device_count,
           coordinates: Geocoding.coordinates(rig.location),
           path: ~p"/test_rigs/#{rig}"
         }
@@ -100,7 +100,7 @@ defmodule HackathonTestRigWeb.HomeLive do
             >
               Test rigs
             </.link>
-            <.link navigate={~p"/phones"} class="btn btn-ghost btn-sm">Phones</.link>
+            <.link navigate={~p"/devices"} class="btn btn-ghost btn-sm">Devices</.link>
             <Layouts.theme_toggle />
           </nav>
         </div>
@@ -125,7 +125,7 @@ defmodule HackathonTestRigWeb.HomeLive do
                   <span class="text-xs text-base-content/60">{marker.location}</span>
                 </span>
                 <span class="text-xs text-base-content/60">
-                  {marker.phone_count} {ngettext("phone", "phones", marker.phone_count)}
+                  {marker.device_count} {ngettext("device", "devices", marker.device_count)}
                 </span>
               </button>
             </li>
@@ -204,7 +204,7 @@ defmodule HackathonTestRigWeb.HomeLive do
               <div class="rig-popup__title">${m.name}</div>
               <div class="rig-popup__meta">${m.location}</div>
               <div class="rig-popup__meta"><code>${m.hostname}</code></div>
-              <div class="rig-popup__meta" data-role="phone-count">${m.phone_count} ${m.phone_count === 1 ? "phone" : "phones"}</div>
+              <div class="rig-popup__meta" data-role="device-count">${m.device_count} ${m.device_count === 1 ? "device" : "devices"}</div>
               <a class="rig-popup__link" href="${m.path}" data-phx-link="redirect" data-phx-link-state="push">Open rig →</a>
             </div>
           `
@@ -230,12 +230,12 @@ defmodule HackathonTestRigWeb.HomeLive do
               const data = this.markerData.get(id)
               const marker = this.markers.get(id)
               if (!data || !marker) continue
-              data.phone_count = count
+              data.device_count = count
               marker.setPopupContent(this.popupHtml(data))
               const open = marker.getPopup()
               if (open && open.isOpen()) {
-                const node = open.getElement()?.querySelector('[data-role="phone-count"]')
-                if (node) node.textContent = `${count} ${count === 1 ? "phone" : "phones"}`
+                const node = open.getElement()?.querySelector('[data-role="device-count"]')
+                if (node) node.textContent = `${count} ${count === 1 ? "device" : "devices"}`
               }
             }
           })
@@ -303,7 +303,7 @@ defmodule HackathonTestRigWeb.HomeLive do
       name: marker.name,
       hostname: marker.hostname,
       location: marker.location,
-      phone_count: marker.phone_count,
+      device_count: marker.device_count,
       path: marker.path,
       lat: lat,
       lng: lng

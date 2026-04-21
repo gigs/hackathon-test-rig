@@ -7,7 +7,7 @@ defmodule HackathonTestRig.Inventory.TestRig do
     field :hostname, :string
     field :location, :string
 
-    has_many :phones, HackathonTestRig.Inventory.Phone
+    has_many :devices, HackathonTestRig.Inventory.Device
 
     timestamps(type: :utc_datetime)
   end

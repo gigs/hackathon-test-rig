@@ -28,37 +28,36 @@ defmodule HackathonTestRigWeb.TestRigLive.Show do
 
       <div class="mt-10">
         <.header>
-          Phones
+          Devices
           <:subtitle>Devices attached to this test rig.</:subtitle>
           <:actions>
             <.button
               variant="primary"
-              navigate={~p"/phones/new?test_rig_id=#{@test_rig.id}&return_to=test_rig"}
+              navigate={~p"/devices/new?test_rig_id=#{@test_rig.id}&return_to=test_rig"}
             >
-              <.icon name="hero-plus" /> New phone
+              <.icon name="hero-plus" /> New device
             </.button>
           </:actions>
         </.header>
       </div>
 
       <.table
-        id="test-rig-phones"
-        rows={@streams.phones}
-        row_click={fn {_id, phone} -> JS.navigate(~p"/phones/#{phone}") end}
+        id="test-rig-devices"
+        rows={@streams.devices}
+        row_click={fn {_id, device} -> JS.navigate(~p"/devices/#{device}") end}
       >
-        <:col :let={{_id, phone}} label="Name">{phone.name}</:col>
-        <:col :let={{_id, phone}} label="Type">{phone.type}</:col>
-        <:col :let={{_id, phone}} label="Device model">{phone.device_model}</:col>
-        <:col :let={{_id, phone}} label="OS version">{phone.os_version}</:col>
-        <:action :let={{_id, phone}}>
+        <:col :let={{_id, device}} label="Brand">{device.brand}</:col>
+        <:col :let={{_id, device}} label="Name">{device.name}</:col>
+        <:col :let={{_id, device}} label="Type">{device.type}</:col>
+        <:action :let={{_id, device}}>
           <div class="sr-only">
-            <.link navigate={~p"/phones/#{phone}"}>Show</.link>
+            <.link navigate={~p"/devices/#{device}"}>Show</.link>
           </div>
-          <.link navigate={~p"/phones/#{phone}/edit?return_to=test_rig"}>Edit</.link>
+          <.link navigate={~p"/devices/#{device}/edit?return_to=test_rig"}>Edit</.link>
         </:action>
-        <:action :let={{id, phone}}>
+        <:action :let={{id, device}}>
           <.link
-            phx-click={JS.push("delete_phone", value: %{id: phone.id}) |> hide("##{id}")}
+            phx-click={JS.push("delete_device", value: %{id: device.id}) |> hide("##{id}")}
             data-confirm="Are you sure?"
           >
             Delete
@@ -77,14 +76,14 @@ defmodule HackathonTestRigWeb.TestRigLive.Show do
      socket
      |> assign(:page_title, "Show Test rig")
      |> assign(:test_rig, test_rig)
-     |> stream(:phones, Inventory.list_phones_for_test_rig(test_rig.id))}
+     |> stream(:devices, Inventory.list_devices_for_test_rig(test_rig.id))}
   end
 
   @impl true
-  def handle_event("delete_phone", %{"id" => id}, socket) do
-    phone = Inventory.get_phone!(id)
-    {:ok, _} = Inventory.delete_phone(phone)
+  def handle_event("delete_device", %{"id" => id}, socket) do
+    device = Inventory.get_device!(id)
+    {:ok, _} = Inventory.delete_device(device)
 
-    {:noreply, stream_delete(socket, :phones, phone)}
+    {:noreply, stream_delete(socket, :devices, device)}
   end
 end

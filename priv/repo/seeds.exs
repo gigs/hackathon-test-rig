@@ -11,7 +11,7 @@
 # and so on) as they will fail if something goes wrong.
 
 alias HackathonTestRig.Inventory
-alias HackathonTestRig.Inventory.{Phone, TestRig}
+alias HackathonTestRig.Inventory.{Device, TestRig}
 alias HackathonTestRig.Repo
 
 test_rigs = [
@@ -32,24 +32,23 @@ end
 
 rigs = Map.new(test_rigs, fn attrs -> {attrs.name, upsert_test_rig.(attrs)} end)
 
-phone_templates = [
-  %{type: :ios, device_model: "iPhone 15 Pro", os_version: "17.5", suffix: "ios-1"},
-  %{type: :ios, device_model: "iPhone 14", os_version: "16.7", suffix: "ios-2"},
-  %{type: :android, device_model: "Pixel 8", os_version: "14", suffix: "android-1"},
-  %{type: :android, device_model: "Samsung Galaxy S24", os_version: "14", suffix: "android-2"}
+device_templates = [
+  %{type: :smartphone, brand: "Apple", suffix: "ios-1"},
+  %{type: :smartphone, brand: "Apple", suffix: "ios-2"},
+  %{type: :smartphone, brand: "Google", suffix: "android-1"},
+  %{type: :smartphone, brand: "Samsung", suffix: "android-2"}
 ]
 
-for {rig_name, rig} <- rigs, template <- phone_templates do
-  phone_name = "#{rig_name}-#{template.suffix}"
+for {rig_name, rig} <- rigs, template <- device_templates do
+  device_name = "#{rig_name}-#{template.suffix}"
 
-  case Repo.get_by(Phone, name: phone_name) do
+  case Repo.get_by(Device, name: device_name) do
     nil ->
       {:ok, _} =
-        Inventory.create_phone(%{
-          name: phone_name,
+        Inventory.create_device(%{
+          name: device_name,
           type: template.type,
-          device_model: template.device_model,
-          os_version: template.os_version,
+          brand: template.brand,
           test_rig_id: rig.id
         })
 

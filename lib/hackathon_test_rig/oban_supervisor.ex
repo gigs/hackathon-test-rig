@@ -1,10 +1,10 @@
 defmodule HackathonTestRig.ObanSupervisor do
   @moduledoc """
-  Boots Oban with one queue per phone.
+  Boots Oban with one queue per device.
 
   Dynamic queues are an Oban Pro feature. Until we adopt that, we read the
-  phones from the database at startup and hand Oban a fixed queue list built
-  from them. Phones added after boot won't have a running queue until the
+  devices from the database at startup and hand Oban a fixed queue list built
+  from them. Devices added after boot won't have a running queue until the
   application restarts.
   """
 
