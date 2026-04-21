@@ -40,7 +40,12 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
         </.header>
       </div>
 
-      <.form for={@flow_form} id="schedule-task-form" phx-submit="schedule_task">
+      <.form
+        for={@flow_form}
+        id="schedule-task-form"
+        phx-submit="schedule_task"
+        phx-change="form_changed"
+      >
         <div class="grid gap-4 sm:grid-cols-2">
           <.input
             field={@flow_form[:scheduled_time]}
@@ -62,17 +67,105 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
           class="w-full textarea font-mono"
           placeholder="appId: com.example.app&#10;---&#10;- launchApp"
         />
-        <.input
-          field={@flow_form[:arguments_yaml]}
-          type="textarea"
-          label="Arguments YAML"
-          rows="6"
-          class="w-full textarea font-mono"
-          placeholder="username: alice&#10;password: s3cret"
-        />
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Arguments</legend>
+          <p class="text-xs text-base-content/60 mb-2">
+            Passed to maestro as <code>-e KEY=VALUE</code>. Paste <code>KEY=VALUE</code> env vars into any field to auto-fill multiple rows.
+          </p>
+          <div id="arguments-list" phx-hook=".ArgumentsPaste" class="flex flex-col gap-2">
+            <div
+              :for={{pair, index} <- Enum.with_index(@arg_pairs)}
+              id={"arg-row-#{index}"}
+              data-arg-row={index}
+              class="flex gap-2 items-center"
+            >
+              <input
+                type="text"
+                name={"maestro[arguments][#{index}][key]"}
+                value={pair["key"]}
+                placeholder="KEY"
+                autocomplete="off"
+                class="input input-bordered flex-1 font-mono"
+                data-arg-field="key"
+              />
+              <span class="text-base-content/40">=</span>
+              <input
+                type="text"
+                name={"maestro[arguments][#{index}][value]"}
+                value={pair["value"]}
+                placeholder="value"
+                autocomplete="off"
+                class="input input-bordered flex-1 font-mono"
+                data-arg-field="value"
+              />
+              <button
+                type="button"
+                phx-click="remove_arg_pair"
+                phx-value-index={index}
+                aria-label="Remove argument"
+                class="btn btn-ghost btn-sm btn-square"
+              >
+                <.icon name="hero-x-mark" />
+              </button>
+            </div>
+          </div>
+          <div class="mt-2">
+            <button type="button" phx-click="add_arg_pair" class="btn btn-ghost btn-sm">
+              <.icon name="hero-plus" /> Add argument
+            </button>
+          </div>
+        </fieldset>
         <footer>
           <.button phx-disable-with="Scheduling..." variant="primary">Schedule task</.button>
         </footer>
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".ArgumentsPaste">
+          export default {
+            mounted() {
+              this.el.addEventListener("paste", (e) => {
+                const target = e.target
+                if (!(target instanceof HTMLInputElement)) return
+                if (target.dataset.argField !== "key" && target.dataset.argField !== "value") return
+
+                const text = (e.clipboardData && e.clipboardData.getData("text")) || ""
+                const pairs = parseEnvVars(text)
+
+                const hasNewline = /\r?\n/.test(text)
+                const isKeyField = target.dataset.argField === "key"
+
+                if (pairs.length === 0) return
+                if (!hasNewline && !isKeyField && pairs.length === 1) return
+
+                const row = target.closest("[data-arg-row]")
+                const index = row ? parseInt(row.dataset.argRow, 10) : 0
+
+                e.preventDefault()
+                this.pushEvent("bulk_paste_args", {index, pairs})
+              })
+
+              function parseEnvVars(text) {
+                const lines = text.split(/\r?\n/)
+                const pairs = []
+                for (const raw of lines) {
+                  const line = raw.trim()
+                  if (!line || line.startsWith("#")) continue
+                  const stripped = line.replace(/^export\s+/, "")
+                  const match = stripped.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*[=:]\s*(.*)$/)
+                  if (!match) continue
+                  let key = match[1]
+                  let value = match[2].trim()
+                  // strip surrounding quotes and trailing comment
+                  if (value.startsWith('"') && value.lastIndexOf('"') > 0) {
+                    value = value.slice(1, value.lastIndexOf('"'))
+                  } else if (value.startsWith("'") && value.lastIndexOf("'") > 0) {
+                    value = value.slice(1, value.lastIndexOf("'"))
+                  }
+                  pairs.push({key, value})
+                }
+                return pairs
+              }
+            }
+          }
+        </script>
       </.form>
 
       <div class="mt-10">
@@ -127,6 +220,7 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
      |> assign(:page_title, "Show Device")
      |> assign(:device, device)
      |> assign(:flow_form, blank_flow_form())
+     |> assign(:arg_pairs, blank_arg_pairs())
      |> assign(:tasks_empty?, tasks == [])
      |> stream(:tasks, tasks)}
   end
@@ -135,12 +229,12 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
   def handle_event("schedule_task", %{"maestro" => params}, socket) do
     device = socket.assigns.device
     flow_yaml = params |> Map.get("flow_yaml", "") |> String.trim()
-    arguments_yaml = Map.get(params, "arguments_yaml", "")
+    arg_pairs = arg_pairs_from_params(params)
+    arguments = arguments_map_from_pairs(arg_pairs)
     scheduled_time = params |> Map.get("scheduled_time", "") |> String.trim()
     max_exec_time = params |> Map.get("maximum_execution_time", "") |> String.trim()
 
     with {:flow, true} <- {:flow, flow_yaml != ""},
-         {:ok, arguments} <- parse_arguments_yaml(arguments_yaml),
          {:ok, task_attrs} <-
            build_task_attrs(device.id, flow_yaml, arguments, scheduled_time, max_exec_time),
          {:ok, _task} <- Orchestrator.create_task(task_attrs) do
@@ -151,6 +245,7 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
        socket
        |> put_flash(:info, "Task scheduled.")
        |> assign(:flow_form, blank_flow_form())
+       |> assign(:arg_pairs, blank_arg_pairs())
        |> assign(:tasks_empty?, tasks == [])
        |> stream(:tasks, tasks, reset: true)}
     else
@@ -158,32 +253,72 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
         {:noreply,
          socket
          |> put_flash(:error, "Flow YAML can't be blank.")
-         |> assign(:flow_form, to_form(params, as: :maestro))}
+         |> assign(:flow_form, to_form(params, as: :maestro))
+         |> assign(:arg_pairs, arg_pairs)}
 
       {:error, :invalid_scheduled_time} ->
         {:noreply,
          socket
          |> put_flash(:error, "Scheduled time is required and must be a valid datetime.")
-         |> assign(:flow_form, to_form(params, as: :maestro))}
+         |> assign(:flow_form, to_form(params, as: :maestro))
+         |> assign(:arg_pairs, arg_pairs)}
 
       {:error, :invalid_max_exec_time} ->
         {:noreply,
          socket
          |> put_flash(:error, "Maximum execution time must be a positive integer.")
-         |> assign(:flow_form, to_form(params, as: :maestro))}
-
-      {:error, message} when is_binary(message) ->
-        {:noreply,
-         socket
-         |> put_flash(:error, "Arguments YAML is invalid: #{message}")
-         |> assign(:flow_form, to_form(params, as: :maestro))}
+         |> assign(:flow_form, to_form(params, as: :maestro))
+         |> assign(:arg_pairs, arg_pairs)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply,
          socket
          |> put_flash(:error, "Could not create task: #{inspect(changeset.errors)}")
-         |> assign(:flow_form, to_form(params, as: :maestro))}
+         |> assign(:flow_form, to_form(params, as: :maestro))
+         |> assign(:arg_pairs, arg_pairs)}
     end
+  end
+
+  def handle_event("form_changed", %{"maestro" => params}, socket) do
+    {:noreply,
+     socket
+     |> assign(:flow_form, to_form(params, as: :maestro))
+     |> assign(:arg_pairs, arg_pairs_from_params(params))}
+  end
+
+  def handle_event("add_arg_pair", _params, socket) do
+    pairs = socket.assigns.arg_pairs ++ [blank_pair()]
+    {:noreply, assign(socket, :arg_pairs, pairs)}
+  end
+
+  def handle_event("remove_arg_pair", %{"index" => index}, socket) do
+    idx = String.to_integer(index)
+
+    pairs =
+      socket.assigns.arg_pairs
+      |> List.delete_at(idx)
+      |> ensure_at_least_one_pair()
+
+    {:noreply, assign(socket, :arg_pairs, pairs)}
+  end
+
+  def handle_event("bulk_paste_args", %{"index" => index, "pairs" => pairs}, socket) do
+    idx = if is_integer(index), do: index, else: String.to_integer(to_string(index))
+
+    pasted =
+      pairs
+      |> Enum.map(fn pair ->
+        %{
+          "key" => pair |> Map.get("key", "") |> to_string(),
+          "value" => pair |> Map.get("value", "") |> to_string()
+        }
+      end)
+      |> Enum.reject(fn %{"key" => k} -> String.trim(k) == "" end)
+
+    current = socket.assigns.arg_pairs
+    updated = merge_pasted_pairs(current, idx, pasted)
+
+    {:noreply, assign(socket, :arg_pairs, updated)}
   end
 
   @impl true
@@ -247,7 +382,6 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
     to_form(
       %{
         "flow_yaml" => "",
-        "arguments_yaml" => "",
         "scheduled_time" => default_scheduled_time(),
         "maximum_execution_time" => "300"
       },
@@ -255,27 +389,80 @@ defmodule HackathonTestRigWeb.DeviceLive.Show do
     )
   end
 
+  defp blank_arg_pairs, do: [blank_pair()]
+
+  defp blank_pair, do: %{"key" => "", "value" => ""}
+
   defp default_scheduled_time do
     DateTime.utc_now()
     |> DateTime.truncate(:second)
     |> Calendar.strftime("%Y-%m-%dT%H:%M")
   end
 
-  defp parse_arguments_yaml(yaml) do
-    yaml
-    |> String.split(~r/\r?\n/)
-    |> Enum.with_index(1)
-    |> Enum.reject(fn {line, _} -> String.trim(line) == "" end)
-    |> Enum.reduce_while({:ok, %{}}, fn {line, line_no}, {:ok, acc} ->
-      case String.split(line, ":", parts: 2) do
-        [key, value] when key != "" ->
-          {:cont, {:ok, Map.put(acc, String.trim(key), String.trim(value))}}
+  defp arg_pairs_from_params(params) do
+    case Map.get(params, "arguments") do
+      nil ->
+        blank_arg_pairs()
 
-        _ ->
-          {:halt, {:error, "expected `key: value` on line #{line_no}"}}
-      end
-    end)
+      pairs when is_map(pairs) ->
+        pairs
+        |> Enum.sort_by(fn {k, _} -> parse_index(k) end)
+        |> Enum.map(fn {_, v} ->
+          %{
+            "key" => v |> Map.get("key", "") |> to_string(),
+            "value" => v |> Map.get("value", "") |> to_string()
+          }
+        end)
+        |> ensure_at_least_one_pair()
+
+      pairs when is_list(pairs) ->
+        pairs
+        |> Enum.map(fn v ->
+          %{
+            "key" => v |> Map.get("key", "") |> to_string(),
+            "value" => v |> Map.get("value", "") |> to_string()
+          }
+        end)
+        |> ensure_at_least_one_pair()
+    end
   end
+
+  defp parse_index(k) do
+    case Integer.parse(to_string(k)) do
+      {i, _} -> i
+      :error -> 0
+    end
+  end
+
+  defp ensure_at_least_one_pair([]), do: blank_arg_pairs()
+  defp ensure_at_least_one_pair(pairs), do: pairs
+
+  defp arguments_map_from_pairs(pairs) do
+    pairs
+    |> Enum.map(fn %{"key" => k, "value" => v} -> {String.trim(k), String.trim(v)} end)
+    |> Enum.reject(fn {k, _} -> k == "" end)
+    |> Map.new()
+  end
+
+  defp merge_pasted_pairs(current, _index, []), do: current
+
+  defp merge_pasted_pairs(current, index, [first | rest_pasted] = pasted) do
+    cond do
+      Enum.all?(current, &blank_pair?/1) ->
+        pasted
+
+      blank_pair?(Enum.at(current, index, blank_pair())) ->
+        {head, tail} = Enum.split(current, index + 1)
+        List.replace_at(head, index, first) ++ rest_pasted ++ tail
+
+      true ->
+        {head, tail} = Enum.split(current, index + 1)
+        head ++ pasted ++ tail
+    end
+  end
+
+  defp blank_pair?(%{"key" => k, "value" => v}),
+    do: String.trim(k) == "" and String.trim(v) == ""
 
   defp format_scheduled(%DateTime{} = dt) do
     Calendar.strftime(dt, "%Y-%m-%d %H:%M UTC")

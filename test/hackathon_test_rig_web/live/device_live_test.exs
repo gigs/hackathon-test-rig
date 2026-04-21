@@ -122,7 +122,7 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
         "scheduled_time" => "2026-04-21T15:30",
         "maximum_execution_time" => "120",
         "flow_yaml" => "appId: com.example\n---\n- launchApp",
-        "arguments_yaml" => "user: alice"
+        "arguments" => %{"0" => %{"key" => "user", "value" => "alice"}}
       }
 
       html =
@@ -151,7 +151,7 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
         "scheduled_time" => "2026-04-21T15:30",
         "maximum_execution_time" => "120",
         "flow_yaml" => "",
-        "arguments_yaml" => ""
+        "arguments" => %{"0" => %{"key" => "", "value" => ""}}
       }
 
       html =
@@ -161,6 +161,44 @@ defmodule HackathonTestRigWeb.DeviceLiveTest do
 
       assert html =~ "Flow YAML can&#39;t be blank."
       assert HackathonTestRig.Orchestrator.list_tasks_for_device(device.id) == []
+    end
+
+    test "adding and removing argument rows works", %{conn: conn, device: device} do
+      {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
+
+      # Starts with a single blank row.
+      assert has_element?(show_live, "input[name=\"maestro[arguments][0][key]\"]")
+      refute has_element?(show_live, "input[name=\"maestro[arguments][1][key]\"]")
+
+      show_live
+      |> element("button[phx-click=\"add_arg_pair\"]")
+      |> render_click()
+
+      assert has_element?(show_live, "input[name=\"maestro[arguments][1][key]\"]")
+
+      show_live
+      |> element("button[phx-click=\"remove_arg_pair\"][phx-value-index=\"1\"]")
+      |> render_click()
+
+      refute has_element?(show_live, "input[name=\"maestro[arguments][1][key]\"]")
+    end
+
+    test "pasting env vars replaces blank rows with parsed pairs", %{conn: conn, device: device} do
+      {:ok, show_live, _html} = live(conn, ~p"/devices/#{device}")
+
+      render_hook(show_live, "bulk_paste_args", %{
+        "index" => 0,
+        "pairs" => [
+          %{"key" => "USER", "value" => "alice"},
+          %{"key" => "TOKEN", "value" => "s3cret"}
+        ]
+      })
+
+      html = render(show_live)
+      assert html =~ "value=\"USER\""
+      assert html =~ "value=\"alice\""
+      assert html =~ "value=\"TOKEN\""
+      assert html =~ "value=\"s3cret\""
     end
 
     test "updates device and returns to show", %{conn: conn, device: device} do
