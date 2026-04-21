@@ -13,7 +13,7 @@ defmodule HackathonTestRig.Workers.MaestroFlowWorker do
   (defaults to `results/` at the project root).
   """
 
-  use Oban.Worker, queue: :default
+  use Oban.Worker, queue: :default, max_attempts: 1
 
   @impl Oban.Worker
   def perform(%Oban.Job{id: job_id, args: args}) do
@@ -38,10 +38,25 @@ defmodule HackathonTestRig.Workers.MaestroFlowWorker do
 
       case exit_code do
         0 -> :ok
-        code -> {:error, "maestro-runner exited with status #{code}"}
+        code -> {:error, {maestro_reason_code(output, code), output}}
       end
     after
       File.rm(flow_path)
+    end
+  end
+
+  defp maestro_reason_code(output, exit_code) do
+    output
+    |> String.split("\n")
+    |> Enum.find_value(fn line ->
+      case String.trim(line) do
+        "Error: " <> rest -> rest
+        _ -> nil
+      end
+    end)
+    |> case do
+      nil -> "maestro-runner exited with status #{exit_code}"
+      reason -> reason
     end
   end
 
